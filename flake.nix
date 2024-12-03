@@ -39,7 +39,12 @@
         src = craneLib.cleanCargoSource (craneLib.path ./.);
         strictDeps = true;
 
-        buildInputs = [];
+        # LIBCLANG_PATH="${pkgs.clang.cc.lib}/lib";
+        buildInputs = [
+          pkgs.clang
+          pkgs.cmake
+          pkgs.rust-bindgen
+        ];
       };
     in {
       checks = {
@@ -52,12 +57,31 @@
         drv = my-crate;
       };
 
-      devShells.default = craneLib.devShell {
-        checks = self.checks.${system};
+      devShells.default = pkgs.mkShell {
         packages = [
           pkgs.rust-analyzer
           pkgs.rustfmt
+          pkgs.rustup
+          pkgs.bacon
+          pkgs.cargo-expand
         ];
       };
+      
+      # devShells.default = craneLib.devShell {
+      #   LIBCLANG_PATH="${pkgs.clang.cc.lib}/lib";
+      #   # Z3_SYS_Z3_HEADER="${pkgs.z3.lib}";
+      #   # Z3_SYS_Z3_HEADER="${pkgs.z3.dev}/include";
+      #   checks = self.checks.${system};
+      #   packages = [
+      #     pkgs.rust-analyzer
+      #     pkgs.rustfmt
+      #     pkgs.rustup
+      #     pkgs.rust-bindgen
+      #     # pkgs.z3
+      #     # pkgs.z3.dev
+      #     # pkgs.z3.lib
+          
+      #   ];
+      # };
     });
 }

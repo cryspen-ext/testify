@@ -1,6 +1,7 @@
 use super::syn_utils::*;
 use crate::prelude::*;
 use std::collections::HashSet;
+use syn::parse_quote;
 use syn::visit::*;
 use syn::visit_mut::*;
 
@@ -369,77 +370,89 @@ impl<S: Substituer> VisitMut for CollectedIntroducedVariables<S> {
     }
 }
 
-fn partial_compute(bindings: Vec<(syn::Pat, syn::Expr)>, expr: &syn::Expr) -> syn::Expr {
-    fn free_vars_of_expr(expr: &syn::Expr) -> HashSet<syn::Ident> {
-        let mut visitor = CollectedIntroducedVariables::new(());
-        visitor.visit_expr_mut(&mut expr.clone());
-        visitor.free_vars
-    }
-    fn free_vars_of_pat(pat: &syn::Pat) -> HashSet<syn::Ident> {
-        let mut visitor = CollectedIntroducedVariables::new(());
-        visitor.visit_pat_mut(&mut pat.clone());
-        visitor.bound_vars
-    }
-
-    let bindings: Vec<_> = bindings
-        .into_iter()
-        .rev()
-        .scan(free_vars_of_expr(expr), |used_vars, (lhs, rhs)| {
-            Some({
-                let lhs_vars = free_vars_of_pat(&lhs);
-                if lhs_vars.intersection(&used_vars).next().is_some() {
-                    let rhs_used_vars = free_vars_of_expr(&rhs).into_iter();
-                    used_vars.extend(rhs_used_vars);
-                    Some((lhs, rhs))
-                } else {
-                    None
-                }
-            })
-        })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .flatten()
-        .rev()
-        .collect();
-
-    panic!(
-        "eval: {}\n\nCtx: {:#?}",
-        expr.into_token_stream(),
-        bindings
-            .iter()
-            .map(|(pat, expr)| format!(
-                "let {} = {};",
-                pat.into_token_stream(),
-                expr.into_token_stream()
-            ))
-            .collect::<Vec<_>>()
-    )
-}
-
-#[derive(Clone)]
+#[derive(Debug, Default)]
 pub struct PartialCompute {
     bindings: Vec<(syn::Pat, syn::Expr)>,
-    found_eval_node: bool,
+    compute_queue: Vec<(String, proc_macro2::TokenStream)>,
 }
 
 impl PartialCompute {
     pub fn new() -> Self {
-        Self {
-            bindings: vec![],
-            found_eval_node: false,
+        Self::default()
+    }
+
+    pub fn get_nodes(self) -> Vec<(String, proc_macro2::TokenStream)> {
+        self.compute_queue
+    }
+
+    fn partial_compute(&mut self, expr: &syn::Expr) -> syn::Expr {
+        let bindings = self.bindings.clone();
+
+        fn free_vars_of_expr(expr: &syn::Expr) -> HashSet<syn::Ident> {
+            let mut visitor = CollectedIntroducedVariables::new(());
+            visitor.visit_expr_mut(&mut expr.clone());
+            visitor.free_vars
         }
+        fn free_vars_of_pat(pat: &syn::Pat) -> HashSet<syn::Ident> {
+            let mut visitor = CollectedIntroducedVariables::new(());
+            visitor.visit_pat_mut(&mut pat.clone());
+            visitor.bound_vars
+        }
+
+        let bindings: Vec<_> = bindings
+            .into_iter()
+            .rev()
+            .scan(free_vars_of_expr(expr), |used_vars, (lhs, rhs)| {
+                Some({
+                    let lhs_vars = free_vars_of_pat(&lhs);
+                    if lhs_vars.intersection(&used_vars).next().is_some() {
+                        let rhs_used_vars = free_vars_of_expr(&rhs).into_iter();
+                        used_vars.extend(rhs_used_vars);
+                        Some((lhs, rhs))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .flatten()
+            .rev()
+            .collect();
+
+        let bindings: proc_macro2::TokenStream = bindings
+            .iter()
+            .map(|(pat, expr)| quote! { let #pat = #expr; })
+            .collect();
+
+        let placeholder_name = format!("__testify_placeholder__{:#?}", self.compute_queue.len());
+        let placeholder_ident = syn::Ident::new(&placeholder_name, proc_macro2::Span::call_site());
+
+        let node = quote! {
+            #bindings
+            #expr
+        };
+
+        self.compute_queue.push((placeholder_name, node));
+
+        parse_quote! {#placeholder_ident}
     }
 }
 
+impl PartialCompute {
+    fn with_snapshot<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        let bindings_snapshot = self.bindings.clone();
+        let result = f(self);
+        self.bindings = bindings_snapshot;
+        result
+    }
+}
 impl VisitMut for PartialCompute {
     fn visit_expr_mut(&mut self, expr: &mut syn::Expr) {
-        if let syn::Expr::Call(call) = expr {
+        if let Ok(call) = NAryCall::<1>::try_from(&*expr) {
+            let [arg] = &call.args;
             if call.func.is_ident("eval") {
-                let args: Vec<_> = call.args.iter().collect();
-                let [arg] = &args[..] else {
-                    panic!("Malformed `eval` node: {}", expr.into_token_stream());
-                };
-                *expr = partial_compute(self.bindings.clone(), arg);
+                *expr = self.partial_compute(arg);
                 return;
             }
         }
@@ -454,17 +467,18 @@ impl VisitMut for PartialCompute {
     }
     fn visit_expr_match_mut(&mut self, expr_match: &mut syn::ExprMatch) {
         let rhs: syn::Expr = (*expr_match.expr).clone();
-        for arm in &mut expr_match.arms {
-            let mut this = self.clone();
-            let lhs: syn::Pat = arm.pat.clone();
-            self.bindings.push((lhs.clone(), rhs.clone()));
-            this.visit_arm_mut(arm);
-        }
+        self.with_snapshot(|this| {
+            for arm in &mut expr_match.arms {
+                let lhs: syn::Pat = arm.pat.clone();
+                this.bindings.push((lhs.clone(), rhs.clone()));
+                this.visit_arm_mut(arm);
+            }
+        })
     }
     fn visit_expr_if_mut(&mut self, i: &mut syn::ExprIf) {
-        self.clone().visit_block_mut(&mut i.then_branch);
+        self.with_snapshot(|this| this.visit_block_mut(&mut i.then_branch));
         if let Some((_, else_branch)) = &mut i.else_branch {
-            self.clone().visit_expr_mut(else_branch.borrow_mut());
+            self.with_snapshot(|this| this.visit_expr_mut(else_branch.borrow_mut()));
         }
     }
 }

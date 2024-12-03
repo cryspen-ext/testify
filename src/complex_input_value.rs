@@ -1,10 +1,17 @@
-use crate::prelude::*;
-use crate::visitors::{AlreadyUsedNames, SubstReferences};
 use std::collections::HashMap;
+
+// NOTE: pour les valeurs complexes, en fait le soucis principal,
+// c'est les références. Les bindings mutables, c'est simple. Mais les
+// refs (mutables ou non), c'est pénible. Dans le cas des
+// préconditions, on peut juste : définir une statique mutable
+// `Option<T>` par input (ou alias), et les set de manière
+// unsafe. Quand on a terminé, on set à `None`. Comme ça on a des
+// références (mutables si besoin) statiques partout !
 
 /// A complex input value is a input instantiation which needs a setup
 /// phase before use. A complex input value is always used via a
 /// binding. The name of the binding is determined by the name input.
+#[derive(Clone)]
 pub struct ComplexInputValue {
     /// A sequence of bindings that will be inserted in the root
     /// expression of the test function. The resources introduced with
