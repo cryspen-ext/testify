@@ -1,10 +1,9 @@
-use syn::visit::Visit;
 use syn::visit_mut::*;
 
-mod syn_utils;
+pub(crate) mod rules;
+pub(crate) mod syn_utils;
 pub(crate) mod visitors;
 
-use syn_utils::*;
 use visitors::*;
 
 pub trait Subst<Subject>: Clone {

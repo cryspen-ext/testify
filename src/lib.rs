@@ -1,12 +1,13 @@
 mod subst;
 
 mod complex_input_value;
-
+mod krate;
+pub mod pool;
 mod prelude;
 
-use crate::prelude::*;
+pub mod imported;
 
-use crate::visitors::SubstReferences;
+use crate::prelude::*;
 
 pub type InputName = String;
 
@@ -31,6 +32,22 @@ pub struct Input {
     pub kind: InputKind,
 }
 
+#[derive(Debug, Clone)]
+pub struct Span {
+    pub start: proc_macro2::LineColumn,
+    pub bytes: usize,
+    pub file: Option<PathBuf>,
+}
+impl Span {
+    fn dummy() -> Self {
+        Self {
+            start: proc_macro2::LineColumn { line: 0, column: 0 },
+            bytes: 0,
+            file: None,
+        }
+    }
+}
+
 #[derive(fmt_derive::Debug, Clone)]
 pub struct Contract {
     pub inputs: Vec<Input>,
@@ -39,6 +56,23 @@ pub struct Contract {
     pub precondition: syn::Expr,
     #[debug("{}", postcondition.into_token_stream())]
     pub postcondition: syn::Expr,
+    pub span: Span,
+    pub dependencies: HashMap<String, String>,
+    pub use_statements: Vec<syn::ItemUse>,
+}
+
+impl Contract {
+    fn dependencies_compatible_with(&self, other: &Self) -> bool {
+        let common_dependencies: HashSet<&String> =
+            HashSet::from_iter(self.dependencies.keys().chain(other.dependencies.keys()));
+        common_dependencies
+            .into_iter()
+            .all(|k| self.dependencies.get(k) == other.dependencies.get(k))
+    }
+    pub fn as_assertion(&self) -> proc_macro2::TokenStream {
+        let postcondition = &self.postcondition;
+        quote! { assert!(#postcondition); }
+    }
 }
 
 impl<V: ETSubst> Subst<Input> for V {
@@ -50,52 +84,17 @@ impl<V: ETSubst> Subst<Input> for V {
     }
 }
 
+#[derive(Clone)]
 pub enum InputInstance {
     ComplexValue(ComplexInputValue),
     SimpleValue(syn::Expr),
     SimpleType(syn::Type),
 }
 
-trait PrependLocal {
-    fn prepend_local(&mut self, local: syn::Local);
-    fn prepend_binding(&mut self, span: proc_macro2::Span, lhs: syn::Pat, rhs: syn::Expr) {
-        self.prepend_local(syn::Local {
-            attrs: vec![],
-            let_token: syn::Token![let](span),
-            pat: lhs,
-            init: Some(syn::LocalInit {
-                eq_token: syn::Token![=](span),
-                expr: Box::new(rhs),
-                diverge: None,
-            }),
-            semi_token: syn::Token![;](span),
-        })
-    }
-}
-
-impl PrependLocal for syn::Block {
-    fn prepend_local(&mut self, local: syn::Local) {
-        self.stmts.insert(0, syn::Stmt::Local(local))
-    }
-}
-impl PrependLocal for syn::Expr {
-    fn prepend_local(&mut self, local: syn::Local) {
-        match self {
-            syn::Expr::Block(block) => block.block.prepend_local(local),
-            _ => {
-                *self = syn::parse_quote! {{
-                    #local
-                    #self
-                }}
-            }
-        }
-    }
-}
-impl PrependLocal for Contract {
-    fn prepend_local(&mut self, local: syn::Local) {
-        self.precondition.prepend_local(local.clone());
-        self.postcondition.prepend_local(local);
-    }
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct Precondition {
+    pub inputs: Vec<(syn::Ident, syn::Type)>,
+    pub predicate: syn::Expr,
 }
 
 impl Contract {
@@ -120,7 +119,8 @@ impl Contract {
         visitor.idents()
     }
     pub fn subst_in_body(&mut self, name: &str, value: impl Subst<syn::Expr>) {
-        self.precondition.subst(name, value);
+        self.precondition.subst(name, value.clone());
+        self.postcondition.subst(name, value);
     }
     pub fn multi_subst_in_body(&mut self, aliases: Vec<String>, value: impl Subst<syn::Expr>) {
         for alias in &aliases {
@@ -176,21 +176,74 @@ impl Contract {
             }
         };
     }
+
+    pub fn expect_concrete_inputs(&self) -> Option<Vec<(syn::Ident, syn::Type)>> {
+        self.inputs
+            .iter()
+            .map(|input| match &input.kind {
+                InputKind::Value { typ, .. } => Some((
+                    syn::Ident::new(&input.name, proc_macro2::Span::call_site()),
+                    typ.clone(),
+                )),
+                _ => None,
+            })
+            .collect::<Option<_>>()
+    }
+
+    pub fn precondition(&self) -> Option<Precondition> {
+        let inputs = self.expect_concrete_inputs()?;
+        let predicate = self.precondition.clone();
+        Some(Precondition { inputs, predicate })
+    }
+
+    /// Extracts the `eval` nodes
+    pub fn extract_eval_nodes(&mut self) -> Vec<(String, proc_macro2::TokenStream)> {
+        let mut visitor = PartialCompute::new();
+        visitor.visit_expr_mut(&mut self.postcondition);
+        visitor.visit_expr_mut(&mut self.precondition);
+        visitor.get_nodes()
+    }
+
+    // pub fn finalize(&mut self) {
+    //     let mut visitor = runner::lazy::Visitor::new().unwrap();
+    //     visitor.visit_expr_mut(&mut self.postcondition);
+    //     visitor.visit_expr_mut(&mut self.precondition);
+    // }
+
+    pub fn subst_names_with_exprs(&mut self, substs: HashMap<String, syn::Expr>) {
+        struct Visitor(HashMap<String, syn::Expr>);
+        impl VisitMut for Visitor {
+            fn visit_expr_mut(&mut self, i: &mut syn::Expr) {
+                syn::visit_mut::visit_expr_mut(self, i);
+                use crate::subst::syn_utils::ExpectIdent;
+                if let Some(expr) = i
+                    .expect_ident()
+                    .and_then(|name| self.0.get(&format!("{name}")))
+                    .cloned()
+                {
+                    *i = expr;
+                }
+            }
+        }
+        let mut visitor = Visitor(substs);
+        visitor.visit_expr_mut(&mut self.postcondition);
+        visitor.visit_expr_mut(&mut self.precondition);
+    }
 }
 
 #[test]
-fn hello() {
+fn concretization() {
     let x = Input {
         name: "x".to_string(),
         kind: InputKind::Value {
-            typ: syn::parse_quote! {u32},
+            typ: syn::parse_quote! {u8},
             aliases: vec!["x1".into()],
         },
     };
     let y = Input {
         name: "y".to_string(),
         kind: InputKind::Value {
-            typ: syn::parse_quote! {u32},
+            typ: syn::parse_quote! {u8},
             aliases: vec![],
         },
     };
@@ -198,33 +251,81 @@ fn hello() {
         inputs: vec![x, y],
         description: "".to_string(),
         precondition: syn::parse_quote! {{
-            if let x = x {
-                x + x
-            };
-            let a = x;
-            let e = a;
-            let b = a;
-            let d = b;
-            let c = b;
-            x + {
-                let x = x;
-                x
-            } + x2 + eval(x1 + c) > 3 * y()
+            x > 10
+            // x + y
+            // if let x = x {
+            //     x + x
+            // };
+            // let a = x;
+            // let e = a;
+            // let b = a;
+            // let d = b;
+            // let c = b;
+            // x + {
+            //     let x = x;
+            //     x
+            // } + x2 + eval(x1 + c) > 3 * y()
         }},
-        postcondition: syn::parse_quote! {true},
+        postcondition: syn::parse_quote! {x + 1 == eval(x + 1)},
+        span: Span::dummy(),
+        dependencies: HashMap::new(),
     };
-    println!("A: {:#?}", contract);
-    contract.instantiate_input("x", InputInstance::SimpleValue(syn::parse_quote! {42}));
-    // contract.instantiate_input(
-    //     "x",
-    //     InputInstance::ComplexValue(ComplexInputValue {
-    //         bindings: vec![],
-    //         mutable: true,
-    //         rhs: syn::parse_quote! {42},
-    //     }),
-    // );
-    println!("B: {:#?}", contract);
-    let mut visitor = PartialCompute::new();
-    visitor.visit_expr_mut(&mut contract.precondition);
-    println!("C: {:#?}", contract);
+
+    for pool in pool::ContractPool::new_pools(vec![contract]) {
+        let pool = pool.instantiate_types();
+        let mut pool = pool.instantiate_values();
+        println!("contracts = {:#?}", pool.contracts());
+        pool.compute_eval_nodes();
+        println!("evaluated contracts = {:#?}", pool.contracts());
+    }
+    // println!("A: {:#?}", contract);
+    // let precondition = contract.precondition().unwrap();
+    // precondition.register();
+    // // precondition.test(&["123".into(), "123".into()]);
+    // let mut contracts = contract.instantiate_inputs_rand();
+    // contracts.iter_mut().for_each(Contract::partial_compute);
+    // contracts.iter_mut().for_each(Contract::finalize);
+    // println!("{:#?}", contracts);
+}
+
+trait PrependLocal {
+    fn prepend_local(&mut self, local: syn::Local);
+    fn prepend_binding(&mut self, span: proc_macro2::Span, lhs: syn::Pat, rhs: syn::Expr) {
+        self.prepend_local(syn::Local {
+            attrs: vec![],
+            let_token: syn::Token![let](span),
+            pat: lhs,
+            init: Some(syn::LocalInit {
+                eq_token: syn::Token![=](span),
+                expr: Box::new(rhs),
+                diverge: None,
+            }),
+            semi_token: syn::Token![;](span),
+        })
+    }
+}
+
+impl PrependLocal for syn::Block {
+    fn prepend_local(&mut self, local: syn::Local) {
+        self.stmts.insert(0, syn::Stmt::Local(local))
+    }
+}
+impl PrependLocal for syn::Expr {
+    fn prepend_local(&mut self, local: syn::Local) {
+        match self {
+            syn::Expr::Block(block) => block.block.prepend_local(local),
+            _ => {
+                *self = syn::parse_quote! {{
+                    #local
+                    #self
+                }}
+            }
+        }
+    }
+}
+impl PrependLocal for Contract {
+    fn prepend_local(&mut self, local: syn::Local) {
+        self.precondition.prepend_local(local.clone());
+        self.postcondition.prepend_local(local);
+    }
 }
