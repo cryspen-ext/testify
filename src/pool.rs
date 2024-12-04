@@ -35,6 +35,10 @@ mod state {
     }
 
     impl ParametricContracts {
+        /// Test the precondition of the nth contract given
+        /// JSON-encoded inputs. Returns `Some(r)` with `r` the result
+        /// of the precondition, or `None` if compiling or executing
+        /// the precondition panicked.
         pub fn test_precondition(
             &mut self,
             nth: usize,
@@ -45,6 +49,9 @@ mod state {
                 .request_json(&api::Input { id: nth, contents })
         }
 
+        /// Create a `ParametricContracts` structs: this uses hax to
+        /// resolve the input types of the contracts, and sets up a
+        /// precondition server.
         pub fn new(contracts: &[Contract], deps: &str) -> Self {
             assert!(contracts.iter().all(Self::check));
 
@@ -443,6 +450,9 @@ impl ContractPool<InstantiatedContracts> {
         }
     }
 
+    /// Compute coverage informations for a crate. This function uses
+    /// both `tarpaulin` and `hax` to compute precise information
+    /// about coverage.
     pub fn compute_coverage(&self) -> Vec<crate::krate::tarpaulin::BadCoverageReport> {
         let by_functions_tested: HashMap<Vec<String>, Vec<&Contract>> = self
             .contracts

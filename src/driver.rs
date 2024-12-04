@@ -4,6 +4,7 @@ use colored::Colorize;
 use std::collections::HashMap;
 use syn::parse_quote;
 
+/// Make sure a binary is in PATH.
 fn require_binary(bin: &str) {
     if which::which(bin).is_err() {
         println!("{}", format!("Could not find binary {}", bin.bold()).red());
@@ -11,6 +12,7 @@ fn require_binary(bin: &str) {
     }
 }
 
+/// Run the default "driver" for a list of contracts.
 pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
     require_binary("cargo-tarpaulin");
 
