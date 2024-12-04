@@ -19,7 +19,7 @@ pub struct Workspace {
     pub(super) crates: HashSet<KrateId>,
 }
 
-pub(super) static WORKSPACE: Lazy<Mutex<Workspace>> = Lazy::new(|| {
+static WORKSPACE: Lazy<Mutex<Workspace>> = Lazy::new(|| {
     let root = PathBuf::from("/tmp/testify");
     std::fs::create_dir_all(&root).unwrap();
     let workspace = Workspace {
@@ -30,6 +30,12 @@ pub(super) static WORKSPACE: Lazy<Mutex<Workspace>> = Lazy::new(|| {
     workspace.write_workspace_manifest();
     Mutex::new(workspace)
 });
+
+pub(super) fn lock_workspace() -> std::sync::MutexGuard<'static, Workspace> {
+    WORKSPACE
+        .lock()
+        .expect("lock_workspace: could not lock WORKSPACE")
+}
 
 impl Workspace {
     fn write_workspace_manifest(&self) {

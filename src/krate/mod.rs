@@ -6,7 +6,7 @@ pub mod hax;
 pub mod server;
 mod workspace;
 
-use workspace::WORKSPACE;
+use workspace::lock_workspace;
 
 #[derive(Debug)]
 pub struct Krate {
@@ -16,7 +16,7 @@ pub struct Krate {
 
 impl Krate {
     pub fn new() -> Self {
-        let mut workspace = WORKSPACE.lock().unwrap();
+        let mut workspace = lock_workspace();
         Self {
             id: workspace.add_crate(),
             dependencies: vec![],
@@ -24,12 +24,12 @@ impl Krate {
     }
 
     pub fn workspace_path(&self) -> PathBuf {
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         workspace.root.clone()
     }
 
     pub fn path(&self) -> PathBuf {
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         workspace.crate_path(self.id)
     }
 
@@ -122,20 +122,20 @@ impl Krate {
         self.add_dependency(r#"serde = { version = "1.0", features = ["derive"] }"#);
     }
     pub fn add_dependency(&mut self, deps: &str) {
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         self.dependencies.push(deps.into());
         workspace.write_crate_manifest(self.id, &self.dependencies.join("\n"))
     }
     pub fn source(&self, source: &str) {
         let source = prettyplease::unparse(&syn::parse_str(source).expect(source));
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         workspace.write_crate_main(self.id, &source)
     }
 }
 
 impl Drop for Krate {
     fn drop(&mut self) {
-        let mut workspace = WORKSPACE.lock().unwrap();
+        let mut workspace = lock_workspace();
         workspace.remove_crate(self.id);
     }
 }
