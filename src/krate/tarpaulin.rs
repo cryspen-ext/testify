@@ -65,6 +65,7 @@ impl TarpaulinReport {
             .map(|(_, line)| line)
             .collect()
     }
+    #[tracing::instrument(level = "trace")]
     pub fn coverage_for_span(
         &self,
         item_path: String,
@@ -154,6 +155,8 @@ impl Krate {
         let file = File::open(path).unwrap_or_else(|e| panic!("{e}: {output:#?}"));
         let reader = BufReader::new(file);
 
-        serde_json::from_reader(reader).unwrap()
+        let report = serde_json::from_reader(reader).unwrap();
+        trace!("tarpaulin report: {report:#?}");
+        report
     }
 }
