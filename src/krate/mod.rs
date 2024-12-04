@@ -85,6 +85,13 @@ impl Krate {
         Ok(krate)
     }
 
+    pub fn fmt(&self) -> std::io::Result<()> {
+        let mut cmd = self.command("cargo");
+        cmd.arg("fmt");
+        cmd.output()?;
+        Ok(())
+    }
+
     pub fn path(&self) -> PathBuf {
         let workspace = lock_workspace();
         workspace.crate_path(self.id)
