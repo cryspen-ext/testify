@@ -1,37 +1,98 @@
+use colored::Colorize;
+use std::collections::HashMap;
+use syn::parse_quote;
 use testify::*;
 
-// mod assertions;
+fn require_binary(bin: &str) {
+    if which::which(bin).is_err() {
+        println!("{}", format!("Could not find binary {}", bin.bold()).red());
+        std::process::exit(1);
+    }
+}
+
+fn non_core_example_contract() -> Contract {
+    Contract {
+        inputs: vec![Input {
+            name: "x".to_string(),
+            kind: InputKind::Value {
+                typ: parse_quote! {u8},
+                aliases: vec![],
+            },
+        }],
+        description: "Test `add_or_zero(x, x)`".to_string(),
+        precondition: parse_quote! {x.up() + x.up() < 256u16.up()},
+        postcondition: parse_quote! { example_crate::add_or_zero(x, x) == eval(u8::down(x.up() + x.up())) },
+        span: Span::dummy(),
+        dependencies: HashMap::from_iter(
+            [
+                (
+                    "abstractions".to_string(),
+                    format!(
+                        r#"{{path = "{}/abstractions"}}"#,
+                        std::env!("CARGO_MANIFEST_DIR")
+                    ),
+                ),
+                (
+                    "example-crate".to_string(),
+                    format!(
+                        r#"{{path = "{}/example-crate"}}"#,
+                        std::env!("CARGO_MANIFEST_DIR")
+                    ),
+                ),
+            ]
+            .into_iter(),
+        ),
+        use_statements: vec![syn::parse_quote! {use abstractions::*;}],
+        function_tested: Some(parse_quote! {example_crate::add_or_zero}),
+    }
+}
 
 fn main() {
+    require_binary("cargo-tarpaulin");
+
     let mut contracts = testify::imported::contracts();
+    contracts.push(non_core_example_contract());
+    let contracts_len = contracts.len();
 
-    let contracts = contracts
-        .into_iter()
-        // .filter(|x| &x.description == "Semantics of the saturating division by non-zero")
-        .collect::<Vec<_>>();
+    let pools = pool::ContractPool::new_pools(contracts);
+    println!(
+        "Processing {} contracts in {} pools",
+        format!("{}", contracts_len).bold(),
+        format!("{}", pools.len()).bold()
+    );
 
-    println!("Processing {} contracts", contracts.len());
+    let outfile = "assertions.rs";
+    use std::{fs, io::Write};
+    fs::remove_file(outfile);
 
-    for pool in pool::ContractPool::new_pools(contracts) {
-        println!("Instantiating types...");
+    let mut resulting_assertions = vec![];
+
+    for (nth, pool) in pools.into_iter().enumerate() {
+        println!(" ① Instantiating types (pool {})...", nth + 1);
         let pool = pool.instantiate_types();
-        println!("Instantiating values...");
+        println!(" ② Instantiating values (pool {})...", nth + 1);
         let mut pool = pool.instantiate_values();
-        println!("Computing eval nodes...");
+        println!(" ③ Computing eval nodes (pool {})...", nth + 1);
         pool.compute_eval_nodes();
+        println!(" ④ Computing coverage (pool {})...", nth + 1);
+        pool.compute_coverage();
+        println!(" ⑤ Done! Saving assertions (pool {}).", nth + 1);
 
         let assertions = pool
             .contracts()
             .iter()
             .map(|contract| contract.as_assertion());
-        let assertions = prettyplease::unparse(&syn::parse_quote! {
-            fn main() {
-                #(#assertions)*
-            }
-        });
 
-        std::fs::write("assertions.rs", assertions).expect("Unable to write file");
+        resulting_assertions.extend(assertions);
     }
 
-    println!("Hello, world!");
+    fs::write(
+        outfile,
+        prettyplease::unparse(&syn::parse_quote! {
+            fn main() {
+                #(#resulting_assertions)*
+            }
+        }),
+    )
+    .expect("Unable to write file");
 }
