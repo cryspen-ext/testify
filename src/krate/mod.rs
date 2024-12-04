@@ -107,6 +107,18 @@ impl Krate {
         cmd.exec()
     }
 
+    /// Finds the path of a crate that exists in the dependency graph
+    /// for the current workspace
+    pub fn manifest_path_of_crate(&self, krate: &str) -> Option<PathBuf> {
+        let metadata = self.metadata().ok()?;
+        let package = metadata.packages.iter().find(|pkg| {
+            pkg.targets.iter().any(|target| {
+                target.name == krate && target.kind.contains(&cargo_metadata::TargetKind::Lib)
+            })
+        })?;
+        Some(package.manifest_path.clone().into())
+    }
+
     /// Constructs a command whose current directory is correctly setup
     pub fn command<S: AsRef<OsStr>>(&self, program: S) -> Command {
         let mut command = Command::new(program);
