@@ -64,6 +64,7 @@
           pkgs.rustup
           pkgs.bacon
           pkgs.cargo-expand
+          pkgs.cargo-tarpaulin
         ];
       };
       
