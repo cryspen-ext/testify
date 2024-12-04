@@ -5,7 +5,7 @@ use crate::krate::{
 };
 use crate::prelude::*;
 use crate::Contract;
-use hax_frontend_exporter::Ty;
+use hax_frontend_exporter::{Ty, TyKind};
 
 /// Declares the types that represent every possible state a pool of
 /// contract can be in.
@@ -283,19 +283,19 @@ fn generate_for_type(ty: &Ty) -> (serde_json::Value, String) {
         let expr = value.to_rust_expr();
         (repr, expr)
     }
-    match ty {
-        Ty::Uint(UintTy::U8) => rand::<u8>(),
-        Ty::Uint(UintTy::U16) => rand::<u16>(),
-        Ty::Uint(UintTy::U32) => rand::<u32>(),
-        Ty::Uint(UintTy::U64) => rand::<u64>(),
-        Ty::Uint(UintTy::U128) => rand::<u128>(),
-        Ty::Uint(UintTy::Usize) => rand::<usize>(),
-        Ty::Int(IntTy::I8) => rand::<i8>(),
-        Ty::Int(IntTy::I16) => rand::<i16>(),
-        Ty::Int(IntTy::I32) => rand::<i32>(),
-        Ty::Int(IntTy::I64) => rand::<i64>(),
-        Ty::Int(IntTy::I128) => rand::<i128>(),
-        Ty::Int(IntTy::Isize) => rand::<isize>(),
+    match ty.kind() {
+        TyKind::Uint(UintTy::U8) => rand::<u8>(),
+        TyKind::Uint(UintTy::U16) => rand::<u16>(),
+        TyKind::Uint(UintTy::U32) => rand::<u32>(),
+        TyKind::Uint(UintTy::U64) => rand::<u64>(),
+        TyKind::Uint(UintTy::U128) => rand::<u128>(),
+        TyKind::Uint(UintTy::Usize) => rand::<usize>(),
+        TyKind::Int(IntTy::I8) => rand::<i8>(),
+        TyKind::Int(IntTy::I16) => rand::<i16>(),
+        TyKind::Int(IntTy::I32) => rand::<i32>(),
+        TyKind::Int(IntTy::I64) => rand::<i64>(),
+        TyKind::Int(IntTy::I128) => rand::<i128>(),
+        TyKind::Int(IntTy::Isize) => rand::<isize>(),
         // Ty::Slice(ty) => {
         //     let n = arbitrary::<usize>() % 6;
         //     let values: Vec<_> =
