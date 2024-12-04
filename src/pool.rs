@@ -176,6 +176,7 @@ mod state {
 }
 pub use state::*;
 
+#[derive(Debug)]
 pub struct ContractPool<State: IsState> {
     contracts: Vec<crate::Contract>,
     state: State,
@@ -453,6 +454,7 @@ impl ContractPool<InstantiatedContracts> {
     /// Compute coverage informations for a crate. This function uses
     /// both `tarpaulin` and `hax` to compute precise information
     /// about coverage.
+    #[tracing::instrument]
     pub fn compute_coverage(&self) -> Vec<crate::krate::tarpaulin::BadCoverageReport> {
         let by_functions_tested: HashMap<Vec<String>, Vec<&Contract>> = self
             .contracts
@@ -463,6 +465,7 @@ impl ContractPool<InstantiatedContracts> {
         by_functions_tested
             .into_iter()
             .filter_map(|(fn_path, contracts)| {
+                trace!("fn_path={:?}", fn_path);
                 // The contracts in `contracts` are all about the same
                 // function `fn_path`.
 
@@ -545,9 +548,12 @@ impl ContractPool<InstantiatedContracts> {
 
                 // Ask tarpaulin a coverage report, but keep only the
                 // reports that are within the span `span`
-                krate
-                    .tarpaulin()
-                    .coverage_for_span(fn_path.to_string(), &filepath, span)
+                let report =
+                    krate
+                        .tarpaulin()
+                        .coverage_for_span(fn_path.to_string(), &filepath, span);
+                trace!("report={:?}", report);
+                report
             })
             .inspect(|report| println!("{report}"))
             .collect()

@@ -42,6 +42,7 @@ impl From<Trace> for LineReport {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct BadCoverageReport {
     pub relative_path: PathBuf,
     pub item_path: String,

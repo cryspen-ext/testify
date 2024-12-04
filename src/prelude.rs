@@ -14,5 +14,6 @@ pub use syn::parse_quote;
 pub use syn::visit::Visit;
 pub use syn::visit_mut::VisitMut;
 pub use thiserror::Error;
+pub use tracing::trace;
 
 pub use crate::{Contract, Input, InputKind, Span};
