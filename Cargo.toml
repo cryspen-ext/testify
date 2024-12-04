@@ -2,9 +2,19 @@
 name = "testify"
 version = "0.1.0"
 edition = "2021"
+default-run = "testify"
 
-[[test]]
-name = "libcore-legacy-contracts"
+[[bin]]
+name = "testify"
+path = "src/main.rs"
+
+[[bin]]
+name = "test-libcore-legacy-contracts"
+path = "tests/libcore_legacy_contracts/main.rs"
+
+[[bin]]
+name = "test-coverage"
+path = "tests/coverage/main.rs"
 
 [dependencies]
 extension-traits = "2.0.0"
