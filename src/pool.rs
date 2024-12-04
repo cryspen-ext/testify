@@ -513,9 +513,6 @@ impl ContractPool<InstantiatedContracts> {
 }
 
 impl<State: IsState> ContractPool<State> {
-    // fn dependencies(&self) {
-    //     self.contracts.iter(|contract| contract.dependencies);
-    // }
     fn retype<NextState: IsState>(self, state: NextState) -> Option<ContractPool<NextState>> {
         let Self {
             contracts,
