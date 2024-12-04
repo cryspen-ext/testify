@@ -40,7 +40,7 @@ pub struct Span {
     pub file: Option<PathBuf>,
 }
 impl Span {
-    fn dummy() -> Self {
+    pub fn dummy() -> Self {
         Self {
             start: proc_macro2::LineColumn { line: 0, column: 0 },
             bytes: 0,
