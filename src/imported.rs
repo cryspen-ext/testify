@@ -44,6 +44,7 @@ macro_rules! contract {
                     )
                 ].into_iter()),
                 use_statements: vec![syn::parse_quote!{use abstractions::*;}],
+                function_tested: None,
             })
         }
     };

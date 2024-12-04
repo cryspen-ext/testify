@@ -59,6 +59,7 @@ pub struct Contract {
     pub span: Span,
     pub dependencies: HashMap<String, String>,
     pub use_statements: Vec<syn::ItemUse>,
+    pub function_tested: Option<syn::Path>,
 }
 
 impl Contract {
@@ -98,6 +99,18 @@ pub struct Precondition {
 }
 
 impl Contract {
+    fn function_tested(&self) -> Option<Vec<String>> {
+        Some(
+            self.function_tested
+                .as_ref()?
+                .segments
+                .iter()
+                .inspect(|segment| assert_eq!(segment.arguments, syn::PathArguments::None))
+                .map(|segment| format!("{}", segment.ident))
+                .collect(),
+        )
+    }
+
     fn retain_input(&mut self, input: &str) -> (InputKind, impl Iterator<Item = &mut Input>) {
         let (idx, _) = self
             .inputs
@@ -269,6 +282,8 @@ fn concretization() {
         postcondition: syn::parse_quote! {x + 1 == eval(x + 1)},
         span: Span::dummy(),
         dependencies: HashMap::new(),
+        function_tested: None,
+        use_statements: vec![],
     };
 
     for pool in pool::ContractPool::new_pools(vec![contract]) {
