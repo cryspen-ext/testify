@@ -40,7 +40,10 @@ pub(super) fn lock_workspace() -> std::sync::MutexGuard<'static, Workspace> {
 impl Workspace {
     fn write_workspace_manifest(&self) {
         let contents = format!(
-            "[workspace]\nmembers = {:#?}",
+            r#"
+[workspace]
+resolver = "2"
+members = {:#?}"#,
             self.crates
                 .iter()
                 .map(|krate| krate.name())
