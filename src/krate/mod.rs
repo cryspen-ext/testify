@@ -1,9 +1,10 @@
+use crate::prelude::*;
 use std::ffi::OsStr;
-use std::path::PathBuf;
 use std::process::Command;
 
 pub mod hax;
 pub mod server;
+pub mod tarpaulin;
 mod workspace;
 
 use workspace::lock_workspace;
