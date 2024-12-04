@@ -101,6 +101,12 @@ impl Krate {
         self.id.name()
     }
 
+    pub fn metadata(&self) -> cargo_metadata::Result<cargo_metadata::Metadata> {
+        let mut cmd = cargo_metadata::MetadataCommand::new();
+        cmd.current_dir(self.path());
+        cmd.exec()
+    }
+
     /// Constructs a command whose current directory is correctly setup
     pub fn command<S: AsRef<OsStr>>(&self, program: S) -> Command {
         let mut command = Command::new(program);
