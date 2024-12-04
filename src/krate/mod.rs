@@ -28,6 +28,63 @@ impl Krate {
         workspace.root.clone()
     }
 
+    /// Create a crate by using the source of an existing crate
+    pub fn duplicate_crate(
+        path: &Path,
+        extra_deps: impl Iterator<Item = (String, String)>,
+    ) -> std::io::Result<Self> {
+        use std::path::Path;
+        use std::{fs, io};
+
+        fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+            fs::create_dir_all(&dst)?;
+            for entry in fs::read_dir(src)? {
+                let entry = entry?;
+                let ty = entry.file_type()?;
+                if ty.is_dir() {
+                    copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+                } else {
+                    fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+                }
+            }
+            Ok(())
+        }
+
+        fn rename_crate(dir: &Path, name: &str) -> io::Result<()> {
+            let manifest_path = dir.join("Cargo.toml");
+            let manifest = fs::read_to_string(&manifest_path)?
+                .lines()
+                .map(|line| {
+                    if line.starts_with("name = ") {
+                        format!(r#"name = "{}""#, name)
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .join("\n");
+            fs::write(&manifest_path, manifest)?;
+            Ok(())
+        }
+
+        fn cargo_add(
+            krate: &Krate,
+            extra_deps: impl Iterator<Item = (String, String)>,
+        ) -> io::Result<()> {
+            let mut cmd = krate.command("cargo");
+            cmd.arg("add");
+            cmd.args(extra_deps.map(|(dep, version)| format!("{dep}@{version}")));
+            cmd.output()?;
+            Ok(())
+        }
+
+        let krate = Self::new();
+        fs::remove_dir_all(krate.path())?;
+        copy_dir_all(&path, krate.path())?;
+        rename_crate(&krate.path(), &krate.name())?;
+        cargo_add(&krate, extra_deps)?;
+        Ok(krate)
+    }
+
     pub fn path(&self) -> PathBuf {
         let workspace = lock_workspace();
         workspace.crate_path(self.id)
