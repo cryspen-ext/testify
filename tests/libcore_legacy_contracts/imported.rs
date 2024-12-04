@@ -1,4 +1,5 @@
-use crate::prelude::*;
+use std::collections::HashMap;
+use testify::{Contract, Input, InputKind, Span};
 
 macro_rules! contract {
     {
