@@ -47,10 +47,6 @@ impl Krate {
     pub fn run(&self) -> std::process::Child {
         use std::process::Stdio;
 
-        // println!("Building...");
-        // self.build().unwrap();
-        // println!("Building... done!");
-
         std::process::Command::new("cargo")
             .arg("run")
             .arg("--quiet")
@@ -154,29 +150,21 @@ pub fn run_or_locate_error<'a, Item: std::fmt::Debug, Output, Error: Clone>(
     let mut queue: VecDeque<_> = vec![items].into();
     let mut error: Option<(Vec<&'a Item>, Error)> = None;
     while let Some(items) = queue.pop_front() {
-        eprintln!("running f for {} item", items.len());
         match f(items) {
             Ok(value) => {
                 if error.is_none() {
                     return Ok(value);
                 }
-                eprintln!("Ok!")
             }
             Err(err) => {
                 let err = (items.iter().collect(), err.clone());
                 match items {
                     [] => unreachable!(),
                     [item] => {
-                        eprintln!("Err, only one item!");
                         return Err(err.clone());
                     }
                     _ => {
                         let (left, right) = items.split_at(items.len() / 2);
-                        eprintln!(
-                            "Err, pushing more items: left={}, right={}",
-                            left.len(),
-                            right.len()
-                        );
                         queue.push_front(left);
                         queue.push_front(right);
                     }

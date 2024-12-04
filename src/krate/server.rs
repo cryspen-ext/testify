@@ -75,7 +75,6 @@ impl Server {
         let mut process = krate.run();
         let stdout = BufReader::new(process.stdout.take().unwrap());
         let stdin = BufWriter::new(process.stdin.take().unwrap());
-        println!("krate={:#?}", (&krate, krate.path()));
         Self {
             process,
             krate,
