@@ -463,6 +463,10 @@ impl ContractPool<InstantiatedContracts> {
         by_functions_tested
             .into_iter()
             .filter_map(|(fn_path, contracts)| {
+                // The contracts in `contracts` are all about the same
+                // function `fn_path`.
+
+                // The crate of the function we're testing
                 let krate_name = &fn_path[0];
 
                 let assertions: Vec<_> = contracts
@@ -470,50 +474,78 @@ impl ContractPool<InstantiatedContracts> {
                     .map(|contract| contract.as_assertion())
                     .collect();
 
-                let mut krate = Krate::new();
-                krate.add_dependency(&self.dependencies_string());
-                let krate_path = krate.manifest_path_of_crate(krate_name).unwrap();
-                let krate_path = krate_path.parent().unwrap();
-
-                let copied =
-                    Krate::duplicate_crate(&krate_path, self.dependencies().into_iter()).unwrap();
-
-                let assertions = quote! {
-                    #[test]
-                    fn testify_test() {
-                        #(#assertions)*
-                    }
+                let krate = {
+                    // Find the full path to the source of the crate `krate_name`.
+                    let krate_path = {
+                        // `krate` is a dummy crate whose dependencies
+                        // are matching dependencies declared in the
+                        // contracts `contracts`
+                        let mut krate = {
+                            let mut krate = Krate::new();
+                            krate.add_dependency(&self.dependencies_string());
+                            krate
+                        };
+                        // Runs `cargo metadata`, and finds the path
+                        // to the `Cargo.toml` of the crate `krate_name`.
+                        let manifest_path = krate.manifest_path_of_crate(krate_name).unwrap();
+                        // Returns the parent folder of the `Cargo.toml` manifest
+                        manifest_path.parent().unwrap().to_path_buf()
+                    };
+                    // We duplicate the crate `krate_name` so that we can edit it freely
+                    Krate::duplicate_crate(&krate_path, self.dependencies().into_iter()).unwrap()
                 };
-                let assertions = format!("{}", assertions.to_token_stream());
-                let assertions = assertions.replace(krate_name, "crate");
 
-                let items = copied.hax().unwrap();
+                // Stringify the path
                 let fn_path = fn_path.join("::");
-                let item = items
-                    .iter()
-                    .find(|item| {
-                        let mut owner_id =
-                            (&item.owner_id as &hax_frontend_exporter::DefIdContents).clone();
-                        owner_id.krate = krate_name.to_string();
-                        owner_id.into_string() == fn_path
-                    })
-                    .unwrap();
 
-                let span = item.span.clone();
-                let filepath = copied
+                // Ask hax about the span of the item `fn_path`
+                let span = {
+                    let items = krate.hax().unwrap();
+                    let item = items
+                        .iter()
+                        .find(|item| {
+                            let mut owner_id =
+                                (&item.owner_id as &hax_frontend_exporter::DefIdContents).clone();
+                            owner_id.krate = krate_name.to_string();
+                            owner_id.into_string() == fn_path
+                        })
+                        .unwrap();
+                    item.span.clone()
+                };
+
+                // Reconstruct the full path to the Rust file holding the item `fn_path`
+                let filepath = krate
                     .workspace_path()
                     .join(span.filename.to_path().unwrap());
 
+                // Construct a unit test that runs the assertions
+                let test_function = {
+                    let test = quote! {
+                        #[test]
+                        fn testify_test() {
+                            #(#assertions)*
+                        }
+                    };
+                    let test = format!("{}", test.to_token_stream());
+                    test.replace(krate_name, "crate")
+                };
+
+                // Insert the unit test right after the item `fn_path` in place
                 {
                     use std::fs;
                     let contents = fs::read_to_string(&filepath).unwrap();
                     let (before, after) = contents.split_at_loc(span.hi.clone());
-                    fs::write(&filepath, format!("{before}{assertions}{after}")).unwrap();
+                    fs::write(&filepath, format!("{before}{test_function}{after}")).unwrap();
                 }
 
-                copied.fmt().unwrap();
+                // Format the crate: we want the various control-flow
+                // branches to be on their own line, `tarpaulin` gives
+                // a per-line report
+                krate.fmt().unwrap();
 
-                copied
+                // Ask tarpaulin a coverage report, but keep only the
+                // reports that are within the span `span`
+                krate
                     .tarpaulin()
                     .coverage_for_span(fn_path.to_string(), &filepath, span)
             })
