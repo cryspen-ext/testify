@@ -443,72 +443,72 @@ impl ContractPool<InstantiatedContracts> {
         }
     }
 
-    pub fn compute_coverage(&self) {
+    pub fn compute_coverage(&self) -> Vec<crate::krate::tarpaulin::BadCoverageReport> {
         let by_functions_tested: HashMap<Vec<String>, Vec<&Contract>> = self
             .contracts
             .iter()
             .flat_map(|contract| Some((contract.function_tested()?, contract)))
             .into_group_map();
 
-        for (fn_path, contracts) in by_functions_tested {
-            let krate_name = &fn_path[0];
+        by_functions_tested
+            .into_iter()
+            .filter_map(|(fn_path, contracts)| {
+                let krate_name = &fn_path[0];
 
-            let assertions: Vec<_> = contracts
-                .iter()
-                .map(|contract| contract.as_assertion())
-                .collect();
+                let assertions: Vec<_> = contracts
+                    .iter()
+                    .map(|contract| contract.as_assertion())
+                    .collect();
 
-            let mut krate = Krate::new();
-            krate.add_dependency(&self.dependencies_string());
-            let krate_path = krate.manifest_path_of_crate(krate_name).unwrap();
-            let krate_path = krate_path.parent().unwrap();
+                let mut krate = Krate::new();
+                krate.add_dependency(&self.dependencies_string());
+                let krate_path = krate.manifest_path_of_crate(krate_name).unwrap();
+                let krate_path = krate_path.parent().unwrap();
 
-            let copied =
-                Krate::duplicate_crate(&krate_path, self.dependencies().into_iter()).unwrap();
+                let copied =
+                    Krate::duplicate_crate(&krate_path, self.dependencies().into_iter()).unwrap();
 
-            let assertions = quote! {
-                #[test]
-                fn testify_test() {
-                    #(#assertions)*
+                let assertions = quote! {
+                    #[test]
+                    fn testify_test() {
+                        #(#assertions)*
+                    }
+                };
+                let assertions = format!("{}", assertions.to_token_stream());
+                let assertions = assertions.replace(krate_name, "crate");
+
+                let items = copied.hax().unwrap();
+                let fn_path = fn_path.join("::");
+                let item = items
+                    .iter()
+                    .find(|item| {
+                        let mut owner_id =
+                            (&item.owner_id as &hax_frontend_exporter::DefIdContents).clone();
+                        owner_id.krate = krate_name.to_string();
+                        owner_id.into_string() == fn_path
+                    })
+                    .unwrap();
+
+                let span = item.span.clone();
+                let filepath = copied
+                    .workspace_path()
+                    .join(span.filename.to_path().unwrap());
+
+                {
+                    use std::fs;
+                    let contents = fs::read_to_string(&filepath).unwrap();
+                    let (before, after) = contents.split_at_loc(span.hi.clone());
+                    fs::write(&filepath, format!("{before}{assertions}{after}")).unwrap();
                 }
-            };
-            let assertions = format!("{}", assertions.to_token_stream());
-            let assertions = assertions.replace(krate_name, "crate");
 
-            let items = copied.hax().unwrap();
-            let fn_path = fn_path.join("::");
-            let item = items
-                .iter()
-                .find(|item| {
-                    let mut owner_id =
-                        (&item.owner_id as &hax_frontend_exporter::DefIdContents).clone();
-                    owner_id.krate = krate_name.to_string();
-                    owner_id.into_string() == fn_path
-                })
-                .unwrap();
+                copied.fmt().unwrap();
 
-            let span = item.span.clone();
-            let filepath = copied
-                .workspace_path()
-                .join(span.filename.to_path().unwrap());
-
-            {
-                use std::fs;
-                let contents = fs::read_to_string(&filepath).unwrap();
-                let (before, after) = contents.split_at_loc(span.hi.clone());
-                fs::write(&filepath, format!("{before}{assertions}{after}")).unwrap();
-            }
-
-            copied.fmt().unwrap();
-
-            let missing =
                 copied
                     .tarpaulin()
-                    .coverage_for_span(fn_path.to_string(), &filepath, span);
-            if let Some(missing) = missing {
-                println!("{missing}");
-            }
-        }
+                    .coverage_for_span(fn_path.to_string(), &filepath, span)
+            })
+            .inspect(|report| println!("{report}"))
+            .collect()
     }
 }
 

@@ -3,6 +3,9 @@ name = "testify"
 version = "0.1.0"
 edition = "2021"
 
+[[test]]
+name = "libcore-legacy-contracts"
+
 [dependencies]
 extension-traits = "2.0.0"
 fmt-derive = "0.1.2"
