@@ -16,4 +16,5 @@ pub use syn::visit_mut::VisitMut;
 pub use thiserror::Error;
 pub use tracing::trace;
 
+pub use crate::DependencySpec;
 pub use crate::{Contract, Input, InputKind, Span};

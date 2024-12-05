@@ -12,7 +12,7 @@ use workspace::lock_workspace;
 #[derive(Debug)]
 pub struct Krate {
     id: workspace::KrateId,
-    dependencies: Vec<String>,
+    dependencies: HashMap<String, DependencySpec>,
 }
 
 impl Krate {
@@ -20,7 +20,7 @@ impl Krate {
         let mut workspace = lock_workspace();
         Self {
             id: workspace.add_crate(),
-            dependencies: vec![],
+            dependencies: HashMap::new(),
         }
     }
 
@@ -32,7 +32,7 @@ impl Krate {
     /// Create a crate by using the source of an existing crate
     pub fn duplicate_crate(
         path: &Path,
-        extra_deps: impl Iterator<Item = (String, String)>,
+        extra_deps: &HashMap<String, DependencySpec>,
     ) -> std::io::Result<Self> {
         use std::path::Path;
         use std::{fs, io};
@@ -69,12 +69,23 @@ impl Krate {
 
         fn cargo_add(
             krate: &Krate,
-            extra_deps: impl Iterator<Item = (String, String)>,
+            extra_deps: &HashMap<String, DependencySpec>,
         ) -> io::Result<()> {
-            let mut cmd = krate.command("cargo");
-            cmd.arg("add");
-            cmd.args(extra_deps.map(|(dep, version)| format!("{dep}@{version}")));
-            cmd.output()?;
+            let manifest_path = krate.path().join("Cargo.toml");
+            let mut manifest: toml::Value =
+                toml::from_str(&fs::read_to_string(&manifest_path)?).unwrap();
+            manifest["dependencies"] = manifest
+                .get("dependencies")
+                .cloned()
+                .unwrap_or(toml::value::Value::Table(toml::Table::default()));
+            let toml::Value::Table(dependencies) = &mut manifest["dependencies"] else {
+                panic!()
+            };
+            for (k, v) in extra_deps {
+                let v = toml::to_string(v).unwrap();
+                dependencies.insert(k.to_string(), toml::from_str(&v).unwrap());
+            }
+            fs::write(&manifest_path, toml::to_string(&manifest).unwrap())?;
             Ok(())
         }
 
@@ -197,13 +208,25 @@ impl Krate {
     }
 
     pub fn use_serde(&mut self) {
-        self.add_dependency(r#"serde_json = "1""#);
-        self.add_dependency(r#"serde = { version = "1.0", features = ["derive"] }"#);
+        self.add_dependencies(
+            &toml::from_str(
+                r#"
+serde_json = "1"
+serde = { version = "1.0", features = ["derive"] }
+        "#,
+            )
+            .unwrap(),
+        );
     }
-    pub fn add_dependency(&mut self, deps: &str) {
+    pub fn add_dependencies(&mut self, deps: &HashMap<String, DependencySpec>) {
+        for (k, v) in deps {
+            self.add_dependency(k, v);
+        }
+    }
+    pub fn add_dependency(&mut self, dep: &str, spec: &DependencySpec) {
         let workspace = lock_workspace();
-        self.dependencies.push(deps.into());
-        workspace.write_crate_manifest(self.id, &self.dependencies.join("\n"))
+        self.dependencies.insert(dep.to_string(), spec.clone());
+        workspace.write_crate_manifest(self.id, &self.dependencies)
     }
     pub fn source(&self, source: &str) {
         let source = prettyplease::unparse(&syn::parse_str(source).expect(source));

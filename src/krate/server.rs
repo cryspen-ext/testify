@@ -2,9 +2,10 @@
 //! syncronous client/server logic.
 
 use crate::krate::Krate;
+use crate::prelude::*;
 use quote::quote;
 use std::io::{BufRead, BufReader, BufWriter};
-use std::process::{Child, ChildStdin, ChildStdout};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 
 /// `declare!(Name, <tokens>)` defines a struct `Name` that implement
 /// `quote::ToTokens`: when converted into a token stream, `Name`
@@ -25,6 +26,7 @@ pub(crate) use declare;
 pub struct Server {
     process: Child,
     stdout: BufReader<ChildStdout>,
+    stderr: BufReader<ChildStderr>,
     stdin: BufWriter<ChildStdin>,
     krate: Krate,
 }
@@ -35,7 +37,10 @@ impl Server {
     /// serializable by `serde`. The type of `request` needs to be
     /// constrainted in `body`: it can be anything that is
     /// deserializable by `serde`.
-    pub fn from_json_fn(body: impl quote::ToTokens, deps: &str) -> Self {
+    pub fn from_json_fn(
+        body: impl quote::ToTokens,
+        deps: &HashMap<String, DependencySpec>,
+    ) -> Self {
         Self::from_string_fn(
             quote! {
                 let request = serde_json::from_str(&request).unwrap();
@@ -48,7 +53,10 @@ impl Server {
     /// Creates a `Server` out of a block of code `body` that can
     /// consume a `request` free variable of type `String`. The type
     /// of `body` should be `String`.
-    pub fn from_string_fn(body: impl quote::ToTokens, deps: &str) -> Self {
+    pub fn from_string_fn(
+        body: impl quote::ToTokens,
+        deps: &HashMap<String, DependencySpec>,
+    ) -> Self {
         let program = quote! {
             fn main() {
                 use std::io::*;
@@ -59,6 +67,8 @@ impl Server {
                         let request = s.trim();
                         let anwser = { #body };
                         println!("{}", anwser);
+                    } else {
+                        eprintln!("Server: could not read line");
                     }
                 }
             }
@@ -67,19 +77,21 @@ impl Server {
     }
     /// Creates a server out of a Rust module `source`, which is
     /// expected to implement a `main` function.
-    pub fn new(source: &str, deps: &str) -> Self {
+    pub fn new(source: &str, deps: &HashMap<String, DependencySpec>) -> Self {
         let mut krate = Krate::new();
-        krate.add_dependency(deps);
+        krate.add_dependencies(deps);
         krate.source(source);
         krate.use_serde();
         let mut process = krate.run();
         let stdout = BufReader::new(process.stdout.take().unwrap());
+        let stderr = BufReader::new(process.stderr.take().unwrap());
         let stdin = BufWriter::new(process.stdin.take().unwrap());
         Self {
             process,
             krate,
             stdout,
             stdin,
+            stderr,
         }
     }
     /// Sends a request to the server and blocks until the server
@@ -103,7 +115,11 @@ impl Server {
         serde_json::from_str(&response).unwrap_or_else(|err| {
             eprintln!("ERROR: `server::request_json` failed to parse a value with error `{err:?}`");
             let request = serde_json::to_string_pretty(req).unwrap();
-            eprintln!("The (pretty printer) request was: {}", request);
+            eprintln!("The (pretty printed) request was: <{}>", request);
+            eprintln!("The response is: <{}>", response);
+            let mut stderr = String::new();
+            self.stderr.read_line(&mut stderr).unwrap();
+            eprintln!("The stderr is: <{}>", stderr);
             panic!()
         })
     }

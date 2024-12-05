@@ -27,7 +27,7 @@ impl Contract {
 
 impl PromptContext {
     pub fn new(
-        dependencies: HashMap<String, String>,
+        dependencies: HashMap<String, DependencySpec>,
         item_to_test: syn::Path,
         contracts: Vec<Contract>,
     ) -> PromptContext {
@@ -44,9 +44,7 @@ impl PromptContext {
                 // contracts `contracts`
                 let mut krate = {
                     let mut krate = Krate::new();
-                    for (dep, spec) in &contract.dependencies {
-                        krate.add_dependency(&format!("{dep} = {spec}"));
-                    }
+                    krate.add_dependencies(&contract.dependencies);
                     krate
                 };
                 // Runs `cargo metadata`, and finds the path
@@ -56,7 +54,11 @@ impl PromptContext {
                 manifest_path.parent().unwrap().to_path_buf()
             };
             // We duplicate the crate `krate_name` so that we can edit it freely
-            Krate::duplicate_crate(&krate_path, contract.dependencies.clone().into_iter()).unwrap()
+            Krate::duplicate_crate(
+                &krate_path,
+                &contract.dependencies.clone().into_iter().collect(),
+            )
+            .unwrap()
         };
 
         let items = krate.hax().unwrap();

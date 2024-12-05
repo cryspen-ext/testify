@@ -51,6 +51,10 @@ impl Span {
     }
 }
 
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct DependencySpec(toml::Value);
+
 #[derive(fmt_derive::Debug, Clone, Serialize, Deserialize)]
 pub struct Contract {
     pub inputs: Vec<Input>,
@@ -64,7 +68,8 @@ pub struct Contract {
     #[serde(default = "Span::dummy")]
     #[serde(with = "serde_via::SerdeVia")]
     pub span: Span,
-    pub dependencies: HashMap<String, String>,
+    // #[serde(with = "serde_via::SerdeVia")]
+    pub dependencies: HashMap<String, DependencySpec>,
     #[serde(with = "serde_via::SerdeVia")]
     pub use_statements: Vec<syn::ItemUse>,
     #[serde(with = "serde_via::SerdeVia")]

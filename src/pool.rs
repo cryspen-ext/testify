@@ -52,7 +52,7 @@ mod state {
         /// Create a `ParametricContracts` structs: this uses hax to
         /// resolve the input types of the contracts, and sets up a
         /// precondition server.
-        pub fn new(contracts: &[Contract], deps: &str) -> Self {
+        pub fn new(contracts: &[Contract], deps: &HashMap<String, DependencySpec>) -> Self {
             assert!(contracts.iter().all(Self::check));
 
             let types = {
@@ -264,7 +264,7 @@ impl ContractPool<GenericContracts> {
     }
 
     pub fn instantiate_types(self) -> ContractPool<ParametricContracts> {
-        let state = ParametricContracts::new(&self.contracts, &self.dependencies_string());
+        let state = ParametricContracts::new(&self.contracts, &self.dependencies());
         self.retype(state)
             .expect("Generic contracts are not supported yet")
     }
@@ -360,7 +360,7 @@ impl ContractPool<ParametricContracts> {
 
 fn eval_expressions(
     exprs: &[proc_macro2::TokenStream],
-    dependencies: &str,
+    dependencies: &HashMap<String, DependencySpec>,
 ) -> Result<Vec<Result<String, String>>, (String, String)> {
     declare! {
         Api,
@@ -369,7 +369,7 @@ fn eval_expressions(
         }
     }
     let mut krate = Krate::new();
-    krate.add_dependency(dependencies);
+    krate.add_dependencies(dependencies);
     let n = exprs.len();
     let program = quote! {
         #Api
@@ -424,7 +424,7 @@ impl ContractPool<InstantiatedContracts> {
             nodes.extend(contract_nodes);
         }
 
-        let dependencies = self.dependencies_string();
+        let dependencies = self.dependencies();
         let nodes = run_or_locate_error(&nodes, |node| eval_expressions(node, &dependencies))
             .unwrap_or_else(|(context, (stderr, program))| {
                 eprintln!(
@@ -514,7 +514,7 @@ impl ContractPool<InstantiatedContracts> {
                         // contracts `contracts`
                         let mut krate = {
                             let mut krate = Krate::new();
-                            krate.add_dependency(&self.dependencies_string());
+                            krate.add_dependencies(&self.dependencies());
                             krate
                         };
                         // Runs `cargo metadata`, and finds the path
@@ -524,7 +524,8 @@ impl ContractPool<InstantiatedContracts> {
                         manifest_path.parent().unwrap().to_path_buf()
                     };
                     // We duplicate the crate `krate_name` so that we can edit it freely
-                    Krate::duplicate_crate(&krate_path, self.dependencies().into_iter()).unwrap()
+                    Krate::duplicate_crate(&krate_path, &self.dependencies().into_iter().collect())
+                        .unwrap()
                 };
 
                 // Stringify the path
@@ -612,25 +613,20 @@ impl<State: IsState> ContractPool<State> {
 
     /// Returns the Cargo dependencies for this pool. This function
     /// assumes contracts dependencies are compatible. If this
-    /// invariant is not met, the funciton panics.
-    pub fn dependencies(&self) -> HashMap<String, String> {
+    /// invariant is not met, the function panics.
+    pub fn dependencies(&self) -> HashMap<String, DependencySpec> {
         let mut deps = HashMap::new();
         for contract in self.contracts() {
             for (dependency, version) in &contract.dependencies {
-                if let Some(previous_version) =
-                    deps.insert(dependency.to_string(), version.to_string())
+                if let Some(previous_version) = deps.insert(dependency.to_string(), version.clone())
                 {
-                    assert_eq!(previous_version, version.as_str());
+                    assert_eq!(&previous_version, version);
                 }
             }
         }
         deps
     }
     pub fn dependencies_string(&self) -> String {
-        self.dependencies()
-            .iter()
-            .map(|(dependency, version)| format!("{dependency} = {version}"))
-            .collect::<Vec<_>>()
-            .join("\n")
+        dependencies_to_string(&self.dependencies())
     }
 }

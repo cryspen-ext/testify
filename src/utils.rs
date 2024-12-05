@@ -167,4 +167,24 @@ pub mod serde_via {
             self.into_iter().map(T::to_repr).collect()
         }
     }
+
+    use std::collections::HashMap;
+    impl<T: SerdeVia> SerdeVia for HashMap<String, T> {
+        type Repr = HashMap<String, T::Repr>;
+        fn from_repr(v: Self::Repr) -> Result<Self, impl Display> {
+            v.into_iter()
+                .map(|(k, v)| T::from_repr(v).map(|v| (k, v)))
+                .collect::<Result<Vec<_>, _>>()
+                .map(|v| Self::from_iter(v.into_iter()))
+        }
+        fn to_repr(self) -> Self::Repr {
+            self.into_iter().map(|(k, v)| (k, T::to_repr(v))).collect()
+        }
+    }
+}
+
+pub fn dependencies_to_string(deps: &HashMap<String, DependencySpec>) -> String {
+    let mut wrapper = HashMap::new();
+    wrapper.insert("dependencies", deps);
+    toml::to_string(&wrapper).unwrap()
 }

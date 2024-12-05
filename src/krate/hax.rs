@@ -83,7 +83,7 @@ pub enum HaxQueryError {
 
 pub fn execute_hax_queries(
     queries: &[HaxQuery],
-    deps: &str,
+    deps: &HashMap<String, DependencySpec>,
 ) -> Result<Vec<HaxQueryRes>, HaxQueryError> {
     let mut krate = Krate::new();
     let queries: Vec<_> = queries
@@ -91,7 +91,7 @@ pub fn execute_hax_queries(
         .enumerate()
         .map(|(i, query)| HaxQueryWithId(query.clone(), i))
         .collect();
-    krate.add_dependency(deps);
+    krate.add_dependencies(deps);
     let items: Vec<Item> = run_or_locate_error(&queries, |queries| {
         let source = quote! {
             #(#queries)*
