@@ -9,6 +9,9 @@ Status:
  - there is a begining of error handling, but I need to improve that
  - types are infered via hax
 
+## Prerequisite
+ - `tarpaulin`: `cargo install tarpaulin`
+
 ## General design
 A contract is defined as the following (see in `lib.rs`):
 ```rust
