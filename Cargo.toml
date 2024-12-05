@@ -42,6 +42,5 @@ cargo_metadata = "0.19.1"
 regex = "1.11.1"
 colored = "2.1.0"
 which = "7.0.0"
-# z3 = {git = "https://github.com/prove-rs/z3.rs.git", features = ["bundled"]}
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
