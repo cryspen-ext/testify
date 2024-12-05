@@ -13,20 +13,22 @@ pub type InputName = String;
 
 use quote::ToTokens;
 
-#[derive(fmt_derive::Debug, Clone)]
+#[derive(fmt_derive::Debug, Clone, Serialize, Deserialize)]
 pub enum InputKind {
     Value {
         #[debug("{}", typ.into_token_stream())]
+        #[serde(with = "serde_via::SerdeVia")]
         typ: syn::Type,
         aliases: Vec<InputName>,
     },
     Type {
         #[debug("{}", bounds.into_token_stream())]
+        #[serde(with = "serde_via::SerdeVia")]
         bounds: syn::WhereClause,
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Input {
     pub name: InputName,
     pub kind: InputKind,
@@ -48,17 +50,23 @@ impl Span {
     }
 }
 
-#[derive(fmt_derive::Debug, Clone)]
+#[derive(fmt_derive::Debug, Clone, Serialize, Deserialize)]
 pub struct Contract {
     pub inputs: Vec<Input>,
     pub description: String,
     #[debug("{}", precondition.into_token_stream())]
+    #[serde(with = "serde_via::SerdeVia")]
     pub precondition: syn::Expr,
     #[debug("{}", postcondition.into_token_stream())]
+    #[serde(with = "serde_via::SerdeVia")]
     pub postcondition: syn::Expr,
+    #[serde(default = "Span::dummy")]
+    #[serde(with = "serde_via::SerdeVia")]
     pub span: Span,
     pub dependencies: HashMap<String, String>,
+    #[serde(with = "serde_via::SerdeVia")]
     pub use_statements: Vec<syn::ItemUse>,
+    #[serde(with = "serde_via::SerdeVia")]
     pub function_tested: Option<syn::Path>,
 }
 

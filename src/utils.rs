@@ -59,3 +59,73 @@ impl<'a> &'a str {
         self.split_at_line_col(loc.line, loc.col)
     }
 }
+
+pub mod serde_via {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::fmt::Display;
+
+    pub trait SerdeVia: Clone {
+        type Repr: Serialize + for<'de> Deserialize<'de>;
+        fn to_repr(self) -> Self::Repr;
+        fn from_repr(repr: Self::Repr) -> Result<Self, impl Display>;
+        fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+            Self::to_repr(self.clone()).serialize(s)
+        }
+        fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            use serde::de::Error;
+            Self::from_repr(Self::Repr::deserialize(d)?).map_err(|err| D::Error::custom(err))
+        }
+    }
+
+    trait AutoSerdeVia: quote::ToTokens + syn::parse::Parse + Clone {}
+
+    impl<T: AutoSerdeVia> SerdeVia for T {
+        type Repr = String;
+        fn from_repr(v: Self::Repr) -> Result<Self, impl Display> {
+            use std::str::FromStr;
+            let ts = proc_macro2::TokenStream::from_str(&v)?;
+            syn::parse2(ts)
+        }
+        fn to_repr(self) -> Self::Repr {
+            use quote::ToTokens;
+            format!("{}", self.into_token_stream())
+        }
+    }
+
+    impl AutoSerdeVia for syn::Path {}
+    impl AutoSerdeVia for syn::Type {}
+    impl AutoSerdeVia for syn::Expr {}
+    impl AutoSerdeVia for syn::WhereClause {}
+    impl AutoSerdeVia for syn::ItemUse {}
+
+    impl SerdeVia for super::Span {
+        type Repr = ();
+        fn from_repr(v: Self::Repr) -> Result<Self, impl Display> {
+            Ok::<_, &str>(Self::dummy())
+        }
+        fn to_repr(self) -> Self::Repr {
+            ()
+        }
+    }
+    impl<T: SerdeVia> SerdeVia for Option<T> {
+        type Repr = Option<T::Repr>;
+        fn from_repr(v: Self::Repr) -> Result<Self, impl Display> {
+            match v {
+                Some(v) => T::from_repr(v).map(Some),
+                None => Ok(None),
+            }
+        }
+        fn to_repr(self) -> Self::Repr {
+            self.map(T::to_repr)
+        }
+    }
+    impl<T: SerdeVia> SerdeVia for Vec<T> {
+        type Repr = Vec<T::Repr>;
+        fn from_repr(v: Self::Repr) -> Result<Self, impl Display> {
+            v.into_iter().map(T::from_repr).collect()
+        }
+        fn to_repr(self) -> Self::Repr {
+            self.into_iter().map(T::to_repr).collect()
+        }
+    }
+}
