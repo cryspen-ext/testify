@@ -3,6 +3,7 @@ mod subst;
 mod complex_input_value;
 pub mod driver;
 mod krate;
+pub mod llm;
 pub mod pool;
 mod prelude;
 mod utils;
