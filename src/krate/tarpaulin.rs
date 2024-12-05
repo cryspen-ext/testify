@@ -4,28 +4,52 @@ use hax_frontend_exporter::Loc;
 use hax_frontend_exporter::Span;
 use std::fmt;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Stats {
-    #[serde(rename = "Line")]
-    pub line: usize,
-}
+mod tarpaulin_cli_wrapper {
+    use super::*;
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct Stats {
+        #[serde(rename = "Line")]
+        pub line: usize,
+    }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Trace {
-    pub line: usize,
-    pub stats: Stats,
-}
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct Trace {
+        pub line: usize,
+        pub stats: Stats,
+    }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FileReport {
-    pub path: Vec<String>,
-    pub traces: Vec<Trace>,
-}
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct FileReport {
+        pub path: Vec<String>,
+        pub traces: Vec<Trace>,
+    }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TarpaulinReport {
-    pub files: Vec<FileReport>,
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    pub struct TarpaulinReport {
+        pub files: Vec<FileReport>,
+    }
+
+    impl Krate {
+        pub fn tarpaulin(&self) -> TarpaulinReport {
+            let mut tarpaulin = self.command("cargo");
+            tarpaulin.args(&["tarpaulin", "--out", "Json"]);
+            tarpaulin.arg("--output-dir");
+            tarpaulin.arg(self.path());
+            tarpaulin.args(&["--", "testify_test"]);
+            let output = tarpaulin.output().unwrap();
+            let path = self.path().join("tarpaulin-report.json");
+            use std::fs::File;
+            use std::io::BufReader;
+            let file = File::open(path).unwrap_or_else(|e| panic!("{e}: {output:#?}"));
+            let reader = BufReader::new(file);
+
+            let report = serde_json::from_reader(reader).unwrap();
+            trace!("tarpaulin report: {report:#?}");
+            report
+        }
+    }
 }
+pub use tarpaulin_cli_wrapper::*;
 
 #[derive(Copy, Clone, Debug)]
 pub struct LineReport {
@@ -138,25 +162,5 @@ impl fmt::Display for BadCoverageReport {
             writeln!(f, " {box_char} {} {c} {s}", n.dimmed())?;
         }
         Ok(())
-    }
-}
-
-impl Krate {
-    pub fn tarpaulin(&self) -> TarpaulinReport {
-        let mut tarpaulin = self.command("cargo");
-        tarpaulin.args(&["tarpaulin", "--out", "Json"]);
-        tarpaulin.arg("--output-dir");
-        tarpaulin.arg(self.path());
-        tarpaulin.args(&["--", "testify_test"]);
-        let output = tarpaulin.output().unwrap();
-        let path = self.path().join("tarpaulin-report.json");
-        use std::fs::File;
-        use std::io::BufReader;
-        let file = File::open(path).unwrap_or_else(|e| panic!("{e}: {output:#?}"));
-        let reader = BufReader::new(file);
-
-        let report = serde_json::from_reader(reader).unwrap();
-        trace!("tarpaulin report: {report:#?}");
-        report
     }
 }
