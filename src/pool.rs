@@ -451,9 +451,38 @@ impl ContractPool<InstantiatedContracts> {
         }
     }
 
-    /// Compute coverage informations for a crate. This function uses
-    /// both `tarpaulin` and `hax` to compute precise information
-    /// about coverage.
+    /// Computes coverage information for a crate using both `tarpaulin` and `hax`.
+    ///
+    /// This function combines data from two tools to generate precise
+    /// metrics:
+    ///
+    /// - **`tarpaulin`**: Provides line-by-line coverage information
+    /// (covered/uncovered) for all files within a crate. However,
+    /// this raw data includes irrelevant coverage details outside the
+    /// scope of the function being tested. For example, when testing
+    /// a function `double`, we are only interested in the coverage of
+    /// the definition of function `double` itself, not in the
+    /// coverage of other function implementations (e.g. `+`), which
+    /// are indirectly invoked.
+    ///
+    /// - **`hax`**: Supplies precise span information for the
+    /// specific function being tested. Using these spans, we filter
+    /// the output from `tarpaulin` to focus only on the relevant
+    /// parts of the code under test.
+    ///
+    /// ### Workflow
+    /// 1. For each function tested by the contracts:
+    ///    - Extract the associated crate and resolve the path to its source.
+    ///    - Duplicate the crate to safely inject additional test cases and formatting changes.
+    /// 2. Query `hax` to determine the precise span of the function under test.
+    /// 3. Use the span to:
+    ///    - Insert a unit test for the function directly after its definition.
+    ///    - Format the crate to align the control-flow branches for better per-line coverage analysis.
+    /// 4. Run `tarpaulin` to generate a coverage report filtered to the span of the function under test.
+    ///
+    /// ### Returns
+    /// A vector of `BadCoverageReport`, each representing uncovered lines for the
+    /// functions tested by the contracts.
     #[tracing::instrument]
     pub fn compute_coverage(&self) -> Vec<crate::krate::tarpaulin::BadCoverageReport> {
         let by_functions_tested: HashMap<Vec<String>, Vec<&Contract>> = self
