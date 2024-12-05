@@ -1,4 +1,5 @@
-use crate::prelude::*;
+use std::collections::HashMap;
+use testify::{Contract, Input, InputKind, Span};
 
 macro_rules! contract {
     {
@@ -44,6 +45,7 @@ macro_rules! contract {
                     )
                 ].into_iter()),
                 use_statements: vec![syn::parse_quote!{use abstractions::*;}],
+                function_tested: None,
             })
         }
     };

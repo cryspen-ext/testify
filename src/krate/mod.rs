@@ -1,12 +1,13 @@
+use crate::prelude::*;
 use std::ffi::OsStr;
-use std::path::PathBuf;
 use std::process::Command;
 
 pub mod hax;
 pub mod server;
+pub mod tarpaulin;
 mod workspace;
 
-use workspace::WORKSPACE;
+use workspace::lock_workspace;
 
 #[derive(Debug)]
 pub struct Krate {
@@ -16,7 +17,7 @@ pub struct Krate {
 
 impl Krate {
     pub fn new() -> Self {
-        let mut workspace = WORKSPACE.lock().unwrap();
+        let mut workspace = lock_workspace();
         Self {
             id: workspace.add_crate(),
             dependencies: vec![],
@@ -24,17 +25,99 @@ impl Krate {
     }
 
     pub fn workspace_path(&self) -> PathBuf {
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         workspace.root.clone()
     }
 
+    /// Create a crate by using the source of an existing crate
+    pub fn duplicate_crate(
+        path: &Path,
+        extra_deps: impl Iterator<Item = (String, String)>,
+    ) -> std::io::Result<Self> {
+        use std::path::Path;
+        use std::{fs, io};
+
+        fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+            fs::create_dir_all(&dst)?;
+            for entry in fs::read_dir(src)? {
+                let entry = entry?;
+                let ty = entry.file_type()?;
+                if ty.is_dir() {
+                    copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+                } else {
+                    fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+                }
+            }
+            Ok(())
+        }
+
+        fn rename_crate(dir: &Path, name: &str) -> io::Result<()> {
+            let manifest_path = dir.join("Cargo.toml");
+            let manifest = fs::read_to_string(&manifest_path)?
+                .lines()
+                .map(|line| {
+                    if line.starts_with("name = ") {
+                        format!(r#"name = "{}""#, name)
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .join("\n");
+            fs::write(&manifest_path, manifest)?;
+            Ok(())
+        }
+
+        fn cargo_add(
+            krate: &Krate,
+            extra_deps: impl Iterator<Item = (String, String)>,
+        ) -> io::Result<()> {
+            let mut cmd = krate.command("cargo");
+            cmd.arg("add");
+            cmd.args(extra_deps.map(|(dep, version)| format!("{dep}@{version}")));
+            cmd.output()?;
+            Ok(())
+        }
+
+        let krate = Self::new();
+        fs::remove_dir_all(krate.path())?;
+        copy_dir_all(&path, krate.path())?;
+        rename_crate(&krate.path(), &krate.name())?;
+        cargo_add(&krate, extra_deps)?;
+        Ok(krate)
+    }
+
+    pub fn fmt(&self) -> std::io::Result<()> {
+        let mut cmd = self.command("cargo");
+        cmd.arg("fmt");
+        cmd.output()?;
+        Ok(())
+    }
+
     pub fn path(&self) -> PathBuf {
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         workspace.crate_path(self.id)
     }
 
     pub fn name(&self) -> String {
         self.id.name()
+    }
+
+    pub fn metadata(&self) -> cargo_metadata::Result<cargo_metadata::Metadata> {
+        let mut cmd = cargo_metadata::MetadataCommand::new();
+        cmd.current_dir(self.path());
+        cmd.exec()
+    }
+
+    /// Finds the path of a crate that exists in the dependency graph
+    /// for the current workspace
+    pub fn manifest_path_of_crate(&self, krate: &str) -> Option<PathBuf> {
+        let metadata = self.metadata().ok()?;
+        let package = metadata.packages.iter().find(|pkg| {
+            pkg.targets.iter().any(|target| {
+                target.name == krate && target.kind.contains(&cargo_metadata::TargetKind::Lib)
+            })
+        })?;
+        Some(package.manifest_path.clone().into())
     }
 
     /// Constructs a command whose current directory is correctly setup
@@ -46,10 +129,6 @@ impl Krate {
 
     pub fn run(&self) -> std::process::Child {
         use std::process::Stdio;
-
-        // println!("Building...");
-        // self.build().unwrap();
-        // println!("Building... done!");
 
         std::process::Command::new("cargo")
             .arg("run")
@@ -122,20 +201,20 @@ impl Krate {
         self.add_dependency(r#"serde = { version = "1.0", features = ["derive"] }"#);
     }
     pub fn add_dependency(&mut self, deps: &str) {
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         self.dependencies.push(deps.into());
         workspace.write_crate_manifest(self.id, &self.dependencies.join("\n"))
     }
     pub fn source(&self, source: &str) {
         let source = prettyplease::unparse(&syn::parse_str(source).expect(source));
-        let workspace = WORKSPACE.lock().unwrap();
+        let workspace = lock_workspace();
         workspace.write_crate_main(self.id, &source)
     }
 }
 
 impl Drop for Krate {
     fn drop(&mut self) {
-        let mut workspace = WORKSPACE.lock().unwrap();
+        let mut workspace = lock_workspace();
         workspace.remove_crate(self.id);
     }
 }
@@ -154,29 +233,21 @@ pub fn run_or_locate_error<'a, Item: std::fmt::Debug, Output, Error: Clone>(
     let mut queue: VecDeque<_> = vec![items].into();
     let mut error: Option<(Vec<&'a Item>, Error)> = None;
     while let Some(items) = queue.pop_front() {
-        eprintln!("running f for {} item", items.len());
         match f(items) {
             Ok(value) => {
                 if error.is_none() {
                     return Ok(value);
                 }
-                eprintln!("Ok!")
             }
             Err(err) => {
                 let err = (items.iter().collect(), err.clone());
                 match items {
                     [] => unreachable!(),
                     [item] => {
-                        eprintln!("Err, only one item!");
                         return Err(err.clone());
                     }
                     _ => {
                         let (left, right) = items.split_at(items.len() / 2);
-                        eprintln!(
-                            "Err, pushing more items: left={}, right={}",
-                            left.len(),
-                            right.len()
-                        );
                         queue.push_front(left);
                         queue.push_front(right);
                     }

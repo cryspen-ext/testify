@@ -5,7 +5,7 @@ use crate::krate::{
 };
 use crate::prelude::*;
 use crate::Contract;
-use hax_frontend_exporter::Ty;
+use hax_frontend_exporter::{Ty, TyKind};
 
 /// Declares the types that represent every possible state a pool of
 /// contract can be in.
@@ -35,6 +35,10 @@ mod state {
     }
 
     impl ParametricContracts {
+        /// Test the precondition of the nth contract given
+        /// JSON-encoded inputs. Returns `Some(r)` with `r` the result
+        /// of the precondition, or `None` if compiling or executing
+        /// the precondition panicked.
         pub fn test_precondition(
             &mut self,
             nth: usize,
@@ -45,6 +49,9 @@ mod state {
                 .request_json(&api::Input { id: nth, contents })
         }
 
+        /// Create a `ParametricContracts` structs: this uses hax to
+        /// resolve the input types of the contracts, and sets up a
+        /// precondition server.
         pub fn new(contracts: &[Contract], deps: &str) -> Self {
             assert!(contracts.iter().all(Self::check));
 
@@ -169,6 +176,7 @@ mod state {
 }
 pub use state::*;
 
+#[derive(Debug)]
 pub struct ContractPool<State: IsState> {
     contracts: Vec<crate::Contract>,
     state: State,
@@ -283,19 +291,19 @@ fn generate_for_type(ty: &Ty) -> (serde_json::Value, String) {
         let expr = value.to_rust_expr();
         (repr, expr)
     }
-    match ty {
-        Ty::Uint(UintTy::U8) => rand::<u8>(),
-        Ty::Uint(UintTy::U16) => rand::<u16>(),
-        Ty::Uint(UintTy::U32) => rand::<u32>(),
-        Ty::Uint(UintTy::U64) => rand::<u64>(),
-        Ty::Uint(UintTy::U128) => rand::<u128>(),
-        Ty::Uint(UintTy::Usize) => rand::<usize>(),
-        Ty::Int(IntTy::I8) => rand::<i8>(),
-        Ty::Int(IntTy::I16) => rand::<i16>(),
-        Ty::Int(IntTy::I32) => rand::<i32>(),
-        Ty::Int(IntTy::I64) => rand::<i64>(),
-        Ty::Int(IntTy::I128) => rand::<i128>(),
-        Ty::Int(IntTy::Isize) => rand::<isize>(),
+    match ty.kind() {
+        TyKind::Uint(UintTy::U8) => rand::<u8>(),
+        TyKind::Uint(UintTy::U16) => rand::<u16>(),
+        TyKind::Uint(UintTy::U32) => rand::<u32>(),
+        TyKind::Uint(UintTy::U64) => rand::<u64>(),
+        TyKind::Uint(UintTy::U128) => rand::<u128>(),
+        TyKind::Uint(UintTy::Usize) => rand::<usize>(),
+        TyKind::Int(IntTy::I8) => rand::<i8>(),
+        TyKind::Int(IntTy::I16) => rand::<i16>(),
+        TyKind::Int(IntTy::I32) => rand::<i32>(),
+        TyKind::Int(IntTy::I64) => rand::<i64>(),
+        TyKind::Int(IntTy::I128) => rand::<i128>(),
+        TyKind::Int(IntTy::Isize) => rand::<isize>(),
         // Ty::Slice(ty) => {
         //     let n = arbitrary::<usize>() % 6;
         //     let values: Vec<_> =
@@ -442,12 +450,146 @@ impl ContractPool<InstantiatedContracts> {
             contract.subst_names_with_exprs(substs);
         }
     }
+
+    /// Computes coverage information for a crate using both `tarpaulin` and `hax`.
+    ///
+    /// This function combines data from two tools to generate precise
+    /// metrics:
+    ///
+    /// - **`tarpaulin`**: Provides line-by-line coverage information
+    /// (covered/uncovered) for all files within a crate. However,
+    /// this raw data includes irrelevant coverage details outside the
+    /// scope of the function being tested. For example, when testing
+    /// a function `double`, we are only interested in the coverage of
+    /// the definition of function `double` itself, not in the
+    /// coverage of other function implementations (e.g. `+`), which
+    /// are indirectly invoked.
+    ///
+    /// - **`hax`**: Supplies precise span information for the
+    /// specific function being tested. Using these spans, we filter
+    /// the output from `tarpaulin` to focus only on the relevant
+    /// parts of the code under test.
+    ///
+    /// ### Workflow
+    /// 1. For each function tested by the contracts:
+    ///    - Extract the associated crate and resolve the path to its source.
+    ///    - Duplicate the crate to safely inject additional test cases and formatting changes.
+    /// 2. Query `hax` to determine the precise span of the function under test.
+    /// 3. Use the span to:
+    ///    - Insert a unit test for the function directly after its definition.
+    ///    - Format the crate to align the control-flow branches for better per-line coverage analysis.
+    /// 4. Run `tarpaulin` to generate a coverage report filtered to the span of the function under test.
+    ///
+    /// ### Returns
+    /// A vector of `BadCoverageReport`, each representing uncovered lines for the
+    /// functions tested by the contracts.
+    #[tracing::instrument]
+    pub fn compute_coverage(&self) -> Vec<crate::krate::tarpaulin::BadCoverageReport> {
+        let by_functions_tested: HashMap<Vec<String>, Vec<&Contract>> = self
+            .contracts
+            .iter()
+            .flat_map(|contract| Some((contract.function_tested()?, contract)))
+            .into_group_map();
+
+        by_functions_tested
+            .into_iter()
+            .filter_map(|(fn_path, contracts)| {
+                trace!("fn_path={:?}", fn_path);
+                // The contracts in `contracts` are all about the same
+                // function `fn_path`.
+
+                // The crate of the function we're testing
+                let krate_name = &fn_path[0];
+
+                let assertions: Vec<_> = contracts
+                    .iter()
+                    .map(|contract| contract.as_assertion())
+                    .collect();
+
+                let krate = {
+                    // Find the full path to the source of the crate `krate_name`.
+                    let krate_path = {
+                        // `krate` is a dummy crate whose dependencies
+                        // are matching dependencies declared in the
+                        // contracts `contracts`
+                        let mut krate = {
+                            let mut krate = Krate::new();
+                            krate.add_dependency(&self.dependencies_string());
+                            krate
+                        };
+                        // Runs `cargo metadata`, and finds the path
+                        // to the `Cargo.toml` of the crate `krate_name`.
+                        let manifest_path = krate.manifest_path_of_crate(krate_name).unwrap();
+                        // Returns the parent folder of the `Cargo.toml` manifest
+                        manifest_path.parent().unwrap().to_path_buf()
+                    };
+                    // We duplicate the crate `krate_name` so that we can edit it freely
+                    Krate::duplicate_crate(&krate_path, self.dependencies().into_iter()).unwrap()
+                };
+
+                // Stringify the path
+                let fn_path = fn_path.join("::");
+
+                // Ask hax about the span of the item `fn_path`
+                let span = {
+                    let items = krate.hax().unwrap();
+                    let item = items
+                        .iter()
+                        .find(|item| {
+                            let mut owner_id =
+                                (&item.owner_id as &hax_frontend_exporter::DefIdContents).clone();
+                            owner_id.krate = krate_name.to_string();
+                            owner_id.into_string() == fn_path
+                        })
+                        .unwrap();
+                    item.span.clone()
+                };
+
+                // Reconstruct the full path to the Rust file holding the item `fn_path`
+                let filepath = krate
+                    .workspace_path()
+                    .join(span.filename.to_path().unwrap());
+
+                // Construct a unit test that runs the assertions
+                let test_function = {
+                    let test = quote! {
+                        #[test]
+                        fn testify_test() {
+                            #(#assertions)*
+                        }
+                    };
+                    let test = format!("{}", test.to_token_stream());
+                    test.replace(krate_name, "crate")
+                };
+
+                // Insert the unit test right after the item `fn_path` in place
+                {
+                    use std::fs;
+                    let contents = fs::read_to_string(&filepath).unwrap();
+                    let (before, after) = contents.split_at_loc(span.hi.clone());
+                    fs::write(&filepath, format!("{before}{test_function}{after}")).unwrap();
+                }
+
+                // Format the crate: we want the various control-flow
+                // branches to be on their own line, `tarpaulin` gives
+                // a per-line report
+                krate.fmt().unwrap();
+
+                // Ask tarpaulin a coverage report, but keep only the
+                // reports that are within the span `span`
+                let report =
+                    krate
+                        .tarpaulin()
+                        .coverage_for_span(fn_path.to_string(), &filepath, span);
+                trace!("report={:?}", report);
+                report
+            })
+            .inspect(|report| println!("{report}"))
+            .collect()
+    }
 }
 
 impl<State: IsState> ContractPool<State> {
-    // fn dependencies(&self) {
-    //     self.contracts.iter(|contract| contract.dependencies);
-    // }
     fn retype<NextState: IsState>(self, state: NextState) -> Option<ContractPool<NextState>> {
         let Self {
             contracts,
