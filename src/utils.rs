@@ -15,10 +15,18 @@ impl hax_frontend_exporter::DefIdContents {
         std::iter::once(self.krate.to_string())
             .chain(self.path.iter().flat_map(|i| {
                 use hax_frontend_exporter::DefPathItem;
-                match &i.data {
-                    DefPathItem::TypeNs(s) | DefPathItem::ValueNs(s) => Some(s.to_string()),
-                    _ => None,
-                }
+                Some(
+                    match &i.data {
+                        DefPathItem::TypeNs(s) | DefPathItem::ValueNs(s) => s,
+                        DefPathItem::Impl => "r#impl",
+                        DefPathItem::Use => "r#use",
+                        DefPathItem::AnonConst => "r#_",
+                        DefPathItem::LifetimeNs(_) => "'lifetime",
+                        DefPathItem::ForeignMod => "r#foreign_mod",
+                        _ => return None,
+                    }
+                    .to_string(),
+                )
             }))
             .join("::")
     }
