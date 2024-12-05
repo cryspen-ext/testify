@@ -32,6 +32,45 @@ impl hax_frontend_exporter::DefIdContents {
     }
 }
 
+#[extension(pub trait ItemExt)]
+impl<B: hax_frontend_exporter::IsBody + Serialize> hax_frontend_exporter::Item<B> {
+    /// Finds the `def_id`s mentionned in an item.
+    fn def_ids(&self) -> Vec<hax_frontend_exporter::DefId> {
+        use serde_json::Value;
+        let mut def_ids: Vec<hax_frontend_exporter::DefId> = vec![];
+        let mut queue = vec![serde_json::to_value(self).unwrap()];
+        while let Some(json) = queue.pop() {
+            if let Ok(def_id) = serde_json::from_value(json.clone()) {
+                def_ids.push(def_id);
+            };
+            match json {
+                Value::Null | Value::Number(_) | Value::String(_) | Value::Bool(_) => (),
+                Value::Array(values) => queue.extend(values),
+                Value::Object(map) => queue.extend(map.values().cloned()),
+            }
+        }
+        def_ids
+    }
+}
+
+#[extension(pub trait SpanExt)]
+impl hax_frontend_exporter::Span {
+    fn file_contents(&self, workdir: &Path) -> Option<String> {
+        std::fs::read_to_string(workdir.join(self.filename.to_path()?)).ok()
+    }
+    fn source(&self, workdir: &Path) -> Option<String> {
+        Some(
+            self.file_contents(workdir)?
+                .lines()
+                .enumerate()
+                .map(|(n, s)| (n + 1, s))
+                .filter(|(n, _)| *n >= self.lo.line && *n <= self.hi.line)
+                .map(|(_, s)| s)
+                .join("\n"),
+        )
+    }
+}
+
 #[extension(pub trait StrExt)]
 impl<'a> &'a str {
     /// `line` is not 0-based but 1-based: the first line of a file is denoted `1`
