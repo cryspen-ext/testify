@@ -232,7 +232,7 @@ impl ContractPool<GenericContracts> {
     /// Creates a fresh pool
     pub fn new_pools(contracts: Vec<crate::Contract>) -> Vec<Self> {
         let mut groups: Vec<(crate::Contract, Vec<crate::Contract>)> = vec![];
-        for mut contract in contracts {
+        for contract in contracts {
             if let Some((repr, group)) = groups
                 .iter_mut()
                 .find(|(candidate, _)| candidate.dependencies_compatible_with(&contract))
@@ -512,7 +512,7 @@ impl ContractPool<InstantiatedContracts> {
                         // `krate` is a dummy crate whose dependencies
                         // are matching dependencies declared in the
                         // contracts `contracts`
-                        let mut krate = {
+                        let krate = {
                             let mut krate = Krate::new();
                             krate.add_dependencies(&self.dependencies());
                             krate

@@ -1,8 +1,6 @@
 use crate::prelude::*;
 use crate::*;
 use colored::Colorize;
-use std::collections::HashMap;
-use syn::parse_quote;
 
 /// Make sure a binary is in PATH.
 fn require_binary(bin: &str) {
@@ -34,7 +32,7 @@ pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
     );
 
     let outfile = "assertions.rs";
-    use std::{fs, io::Write};
+    use std::fs;
     fs::remove_file(outfile);
 
     let mut resulting_assertions = vec![];

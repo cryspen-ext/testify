@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use syn::parse_quote;
 use testify::{Contract, Input, InputKind, Span};
 

@@ -2,7 +2,6 @@ use clap::{Parser, Subcommand};
 use std::fs;
 use std::path::PathBuf;
 use testify::prelude::*;
-use testify::*;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

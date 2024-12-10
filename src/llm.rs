@@ -78,7 +78,7 @@ impl LlmAPI for Ollama {
             .send()
             .unwrap();
 
-        use serde::{Deserialize, Serialize};
+        
         use serde_jsonlines::BufReadExt;
         use std::io::BufReader;
         let reader = BufReader::new(res);
@@ -106,7 +106,7 @@ impl LlmAPI for CLI_LLM {
         loop {
             let mut buffer = String::new();
             std::io::stdin().read_line(&mut buffer).unwrap();
-            if (buffer.trim() == "<EOF>") {
+            if buffer.trim() == "<EOF>" {
                 break;
             }
             s += &buffer;
@@ -219,7 +219,7 @@ impl PromptContext {
                 // `krate` is a dummy crate whose dependencies
                 // are matching dependencies declared in the
                 // contracts `contracts`
-                let mut krate = {
+                let krate = {
                     let mut krate = Krate::new();
                     krate.add_dependencies(&contract.dependencies);
                     krate

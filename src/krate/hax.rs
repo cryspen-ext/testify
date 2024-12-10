@@ -1,5 +1,4 @@
 use super::*;
-use crate::prelude::*;
 
 #[derive(fmt_derive::Debug, Clone, Hash, Eq, PartialEq)]
 pub enum HaxQuery {

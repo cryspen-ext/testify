@@ -308,7 +308,7 @@ fn concretization() {
             aliases: vec![],
         },
     };
-    let mut contract = Contract {
+    let contract = Contract {
         inputs: vec![x, y],
         description: "".to_string(),
         precondition: syn::parse_quote! {{

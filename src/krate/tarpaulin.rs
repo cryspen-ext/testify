@@ -3,7 +3,6 @@
 /// to extract coverage information for specific functions or items in a crate.
 use crate::krate::Krate;
 use crate::prelude::*;
-use hax_frontend_exporter::Loc;
 use hax_frontend_exporter::Span;
 use std::fmt;
 
