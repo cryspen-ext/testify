@@ -131,7 +131,7 @@ fn server_string() {
         quote! {
             request
         },
-        "",
+        &HashMap::new(),
     );
     for i in ["A", "B", "C"] {
         assert_eq!(i, server.request(i));
@@ -145,7 +145,7 @@ fn server_json() {
             let (x, y): (u8, u8) = request;
             x + y
         },
-        "",
+        &HashMap::new(),
     );
     assert_eq!(13u16, server.request_json::<_, u16>(&(3u8, 10u8)));
     assert_eq!(42u16, server.request_json::<_, u16>(&(40u8, 2u8)));
