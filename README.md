@@ -63,7 +63,7 @@ You can run the two following demos, that are hardcoding examples:
   `cd tests && cargo run test-llm.toml auto --ollama`
   You need a ollama server ready on port 11434, otherwise remove `--ollama`, you will be prompt to ask a LLM some query interactively.
   This command will find any contracts without pre/post in `test-llm.toml` and replace them with LLM generated contracts.
-
+  The format of contracts is documented in `CONTRACTS.md`.
 
 ## Todos
  - A CLI frontend
