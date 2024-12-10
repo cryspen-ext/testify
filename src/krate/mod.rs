@@ -278,7 +278,7 @@ pub fn run_or_locate_error<'a, Item: std::fmt::Debug, Output, Error: Clone>(
                 let err = (items.iter().collect(), err.clone());
                 match items {
                     [] => unreachable!(),
-                    [item] => {
+                    [_item] => {
                         return Err(err.clone());
                     }
                     _ => {

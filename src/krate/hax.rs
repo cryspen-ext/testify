@@ -127,14 +127,3 @@ pub fn execute_hax_queries(
     assert!(result.len() == queries.len());
     Ok(result)
 }
-
-#[test]
-fn ff() {
-    // panic!(
-    //     "{:#?}",
-    //     // execute_hax_query(&[HaxQuery::Type {
-    //     //     typ: parse_quote! {(u8, [T>)},
-    //     //     generics: parse_quote! {<T>},
-    //     // },])
-    // );
-}

@@ -251,7 +251,7 @@ impl ContractPool<GenericContracts> {
         }
         groups
             .into_iter()
-            .map(|(repr, group)| Self::new(group))
+            .map(|(_, group)| Self::new(group))
             .collect()
     }
 
@@ -274,9 +274,9 @@ pub fn arbitrary<T: for<'a> arbitrary::Arbitrary<'a>>() -> T {
     let mut rng = rand::thread_rng();
     let raw_data: &mut [u8] = &mut [0; 512];
     rng.fill_bytes(raw_data);
-    use arbitrary::Arbitrary as _;
+    // use arbitrary::Arbitrary as _;
     use arbitrary::Unstructured;
-    use rand::RngCore as _;
+    use rand::RngCore;
     T::arbitrary(&mut Unstructured::new(raw_data)).unwrap()
 }
 
@@ -320,7 +320,7 @@ impl ContractPool<ParametricContracts> {
         let mut instantiated_contracts = vec![];
         for (i, contract) in self.contracts.iter().enumerate() {
             let mut instances = vec![];
-            for j in 1..100 {
+            for _ in 1..100 {
                 if instances.len() >= 5 {
                     break;
                 }

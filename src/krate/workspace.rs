@@ -101,12 +101,10 @@ path = "{}/marshalling"
         krate_id
     }
     pub(super) fn remove_crate(&mut self, krate_id: KrateId) {
-        return;
         self.crates.remove(&krate_id);
         self.collect_garbadge();
     }
     fn collect_garbadge(&self) {
-        return;
         let mut crates: HashSet<_> = self.crates.iter().map(|kid| kid.name()).collect();
         crates.insert("target".into());
         for dir in std::fs::read_dir(&self.root)

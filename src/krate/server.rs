@@ -12,6 +12,7 @@ use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 /// expands to `quote!{<tokens>}`.
 macro_rules! declare {
     ($name:ident, $($tt:tt)*) => {
+        #[allow(unused)]
         $($tt)*
         struct $name;
         impl quote::ToTokens for $name {

@@ -44,7 +44,7 @@ pub trait LlmAPI: Sync + Send {
 }
 
 /// A command-line-based implementation of the `LlmAPI`: asks the user interactively to ask a LLM some query, and waits for the user to paste the result.
-pub struct CLI_LLM;
+pub struct CliLlm;
 
 /// An implementation of `LlmAPI` for interacting with the Ollama API.
 pub struct Ollama {
@@ -57,7 +57,7 @@ pub struct Ollama {
 use std::sync::{LazyLock, Mutex};
 
 /// A globally accessible, thread-safe instance of a language model API. This might be overriden by the binary if the user selects a different LLM.
-pub static LLM: LazyLock<Mutex<Box<dyn LlmAPI>>> = LazyLock::new(|| Mutex::new(Box::new(CLI_LLM)));
+pub static LLM: LazyLock<Mutex<Box<dyn LlmAPI>>> = LazyLock::new(|| Mutex::new(Box::new(CliLlm)));
 
 impl LlmAPI for Ollama {
     /// Queries the Ollama API with the given input string.
@@ -78,7 +78,6 @@ impl LlmAPI for Ollama {
             .send()
             .unwrap();
 
-        
         use serde_jsonlines::BufReadExt;
         use std::io::BufReader;
         let reader = BufReader::new(res);
@@ -91,7 +90,7 @@ impl LlmAPI for Ollama {
     }
 }
 
-impl LlmAPI for CLI_LLM {
+impl LlmAPI for CliLlm {
     /// Prompts the user to query a language model manually and returns the result.
     ///
     /// The user is expected to paste the model's response.

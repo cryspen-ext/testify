@@ -31,9 +31,8 @@ pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
         format!("{}", pools.len()).bold()
     );
 
-    let outfile = "assertions.rs";
     use std::fs;
-    fs::remove_file(outfile);
+    let _ = fs::remove_file(&outfile);
 
     let mut resulting_assertions = vec![];
     let mut coverage_reports = vec![];

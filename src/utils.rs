@@ -126,7 +126,6 @@ pub mod serde_via {
             syn::parse2(ts)
         }
         fn to_repr(self) -> Self::Repr {
-            use quote::ToTokens;
             format!("{}", self.into_token_stream())
         }
     }
@@ -139,7 +138,7 @@ pub mod serde_via {
 
     impl SerdeVia for super::Span {
         type Repr = u8;
-        fn from_repr(v: Self::Repr) -> Result<Self, impl Display> {
+        fn from_repr(_: Self::Repr) -> Result<Self, impl Display> {
             Ok::<_, &str>(Self::dummy())
         }
         fn to_repr(self) -> Self::Repr {
