@@ -190,6 +190,7 @@ impl Krate {
             .current_dir(self.path())
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
+            .env("RUST_LOG", "")
             .output()
             .expect("Couldn't run `cargo run`");
 
