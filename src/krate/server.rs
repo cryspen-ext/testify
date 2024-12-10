@@ -117,10 +117,10 @@ impl Server {
             eprintln!("ERROR: `server::request_json` failed to parse a value with error `{err:?}`");
             let request = serde_json::to_string_pretty(req).unwrap();
             eprintln!("The (pretty printed) request was: <{}>", request);
-            eprintln!("The response is: <{}>", response);
+            eprintln!("The response is:\n```\n{}\n```>", response);
             let mut stderr = String::new();
             self.stderr.read_line(&mut stderr).unwrap();
-            eprintln!("The stderr is: <{}>", stderr);
+            eprintln!("The stderr is:\n```\n{}```\n", stderr);
             panic!()
         })
     }
