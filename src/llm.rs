@@ -190,10 +190,12 @@ impl PromptContext {
                 },
             })
             .collect::<Vec<_>>();
-        let precondition = proc_macro2::TokenStream::from_str(precondition).unwrap();
-        let precondition = syn::parse2(precondition).unwrap();
-        let postcondition = proc_macro2::TokenStream::from_str(postcondition).unwrap();
-        let postcondition = syn::parse2(postcondition).unwrap();
+        let precondition =
+            proc_macro2::TokenStream::from_str(precondition).expect("Wrong anwser from LLM");
+        let precondition = syn::parse2(precondition).expect("Wrong anwser from LLM");
+        let postcondition =
+            proc_macro2::TokenStream::from_str(postcondition).expect("Wrong anwser from LLM");
+        let postcondition = syn::parse2(postcondition).expect("Wrong anwser from LLM");
         PromptResult {
             precondition,
             postcondition,
