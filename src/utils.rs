@@ -99,10 +99,16 @@ impl<'a> &'a str {
     }
 }
 
+/// The `serde_via` module provides a mechanism for serializing and deserializing complex types
+/// by converting them into a simpler "representation" type that is easily handled by Serde.
+/// Useful since we work with syn types: we want syn types to be serialized/deserialized to/from strings.
 pub mod serde_via {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::fmt::Display;
 
+    /// The `SerdeVia` trait allows a type to define a "representation type" (`Repr`) that
+    /// can be easily serialized and deserialized with Serde. The implementor provides
+    /// conversions to and from this `Repr` type, and all Serde logic is funneled through it.
     pub trait SerdeVia: Clone {
         type Repr: Serialize + for<'de> Deserialize<'de>;
         fn to_repr(self) -> Self::Repr;
@@ -116,6 +122,7 @@ pub mod serde_via {
         }
     }
 
+    /// Marker trait for syn types that we want to deserialize / serialize to strings.
     trait AutoSerdeVia: quote::ToTokens + syn::parse::Parse + Clone {}
 
     impl<T: AutoSerdeVia> SerdeVia for T {
