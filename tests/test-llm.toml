@@ -1,0 +1,6 @@
+[[contracts]]
+description = "Empty contract to do"
+function_tested = "example_crate :: double_increment"
+
+[contracts.dependencies.example-crate]
+path = "example-crate"

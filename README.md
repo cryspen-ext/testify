@@ -59,6 +59,10 @@ You can run the two following demos, that are hardcoding examples:
 
 - `cargo run --bin test-coverage`
 - `cargo run --bin test-libcore-legacy-contracts`
+- LLM generation of contracts:
+  `cd tests && cargo run test-llm.toml auto --ollama`
+  You need a ollama server ready on port 11434, otherwise remove `--ollama`, you will be prompt to ask a LLM some query interactively.
+  This command will find any contracts without pre/post in `test-llm.toml` and replace them with LLM generated contracts.
 
 
 ## Todos

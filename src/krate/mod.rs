@@ -121,8 +121,18 @@ impl Krate {
 
     /// Finds the path of a crate that exists in the dependency graph
     /// for the current workspace
+    #[tracing::instrument]
     pub fn manifest_path_of_crate(&self, krate: &str) -> Option<PathBuf> {
+        tracing::trace!("self.metadata = {:#?}", self.metadata());
         let metadata = self.metadata().ok()?;
+        tracing::trace!(
+            "metadata.packages = {}",
+            metadata
+                .packages
+                .iter()
+                .map(|pkg| format!("{}", pkg.name))
+                .join(", "),
+        );
         let package = metadata.packages.iter().find(|pkg| {
             pkg.targets.iter().any(|target| {
                 target.name == krate && target.kind.contains(&cargo_metadata::TargetKind::Lib)
@@ -200,6 +210,7 @@ impl Krate {
         if output.status.success() {
             let items: Vec<hax_frontend_exporter::Item<hax_frontend_exporter::ThirBody>> =
                 serde_json::from_str(&stdout).map_err(|e| {
+                    println!("{}", stdout);
                     format!("Error parsing hax output: stdout:\n{stdout}\n\nstderr:{stderr}\n\nerror:{e:?}")
                 })?;
             Ok(items)

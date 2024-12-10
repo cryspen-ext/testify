@@ -85,6 +85,7 @@ pub fn execute_hax_queries(
     queries: &[HaxQuery],
     deps: &HashMap<String, DependencySpec>,
 ) -> Result<Vec<HaxQueryRes>, HaxQueryError> {
+    assert!(!queries.is_empty());
     let mut krate = Krate::new();
     let queries: Vec<_> = queries
         .into_iter()

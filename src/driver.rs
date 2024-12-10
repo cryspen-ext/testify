@@ -22,8 +22,6 @@ pub fn setup_tracing() {
 
 /// Run the default "driver" for a list of contracts.
 pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
-    setup_tracing();
-
     require_binary("cargo-tarpaulin");
 
     let contracts_len = contracts.len();

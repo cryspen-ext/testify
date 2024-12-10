@@ -138,12 +138,12 @@ pub mod serde_via {
     impl AutoSerdeVia for syn::ItemUse {}
 
     impl SerdeVia for super::Span {
-        type Repr = ();
+        type Repr = u8;
         fn from_repr(v: Self::Repr) -> Result<Self, impl Display> {
             Ok::<_, &str>(Self::dummy())
         }
         fn to_repr(self) -> Self::Repr {
-            ()
+            0
         }
     }
     impl<T: SerdeVia> SerdeVia for Option<T> {
@@ -187,4 +187,8 @@ pub fn dependencies_to_string(deps: &HashMap<String, DependencySpec>) -> String 
     let mut wrapper = HashMap::new();
     wrapper.insert("dependencies", deps);
     toml::to_string(&wrapper).unwrap()
+}
+
+pub fn default_expr() -> syn::Expr {
+    parse_quote! {true}
 }

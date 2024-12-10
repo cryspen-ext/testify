@@ -55,22 +55,32 @@ impl Span {
 #[serde(transparent)]
 pub struct DependencySpec(toml::Value);
 
+impl Default for DependencySpec {
+    fn default() -> Self {
+        Self(toml::Value::Table(toml::Table::default()))
+    }
+}
+
 #[derive(fmt_derive::Debug, Clone, Serialize, Deserialize)]
 pub struct Contract {
+    #[serde(default)]
     pub inputs: Vec<Input>,
     pub description: String,
     #[debug("{}", precondition.into_token_stream())]
     #[serde(with = "serde_via::SerdeVia")]
+    #[serde(default = "default_expr")]
     pub precondition: syn::Expr,
     #[debug("{}", postcondition.into_token_stream())]
     #[serde(with = "serde_via::SerdeVia")]
+    #[serde(default = "default_expr")]
     pub postcondition: syn::Expr,
     #[serde(default = "Span::dummy")]
     #[serde(with = "serde_via::SerdeVia")]
     pub span: Span,
-    // #[serde(with = "serde_via::SerdeVia")]
+    #[serde(default)]
     pub dependencies: HashMap<String, DependencySpec>,
     #[serde(with = "serde_via::SerdeVia")]
+    #[serde(default)]
     pub use_statements: Vec<syn::ItemUse>,
     #[serde(with = "serde_via::SerdeVia")]
     pub function_tested: Option<syn::Path>,
@@ -87,6 +97,30 @@ impl Contract {
     pub fn as_assertion(&self) -> proc_macro2::TokenStream {
         let postcondition = &self.postcondition;
         quote! { assert!(#postcondition); }
+    }
+    pub fn is_default(&self) -> bool {
+        let default_expr = &default_expr();
+        self.inputs.is_empty()
+            && &self.precondition == default_expr
+            && &self.postcondition == default_expr
+    }
+    pub fn normalize_paths(&mut self) {
+        let workdir = std::env::current_dir().unwrap();
+        for (_, DependencySpec(toml)) in self.dependencies.iter_mut() {
+            let Some(path) = toml.get_mut("path") else {
+                continue;
+            };
+            let Some(str_path) = path.as_str() else {
+                continue;
+            };
+            *path = toml::Value::String(
+                workdir
+                    .join(PathBuf::from(str_path))
+                    .into_os_string()
+                    .into_string()
+                    .unwrap(),
+            );
+        }
     }
 }
 
