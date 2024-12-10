@@ -80,6 +80,9 @@ pub enum HaxQueryError {
     },
 }
 
+/// Execute a non-empty slice of queries in an efficient way. First it will try to execute everything in one go. If that fails, it will try to find where the error comes from.
+///
+/// This method assumes there is at least one query.
 pub fn execute_hax_queries(
     queries: &[HaxQuery],
     deps: &HashMap<String, DependencySpec>,
