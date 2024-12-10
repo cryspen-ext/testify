@@ -5,7 +5,7 @@ pub mod driver;
 mod krate;
 pub mod llm;
 pub mod pool;
-mod prelude;
+pub mod prelude;
 mod utils;
 
 use crate::prelude::*;
