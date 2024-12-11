@@ -173,7 +173,8 @@ impl PromptContext {
         let output = LLM.lock().unwrap().query(&prompt);
         let lines: Vec<_> = output.split("--------------").map(|s| s.trim()).collect();
         let [inputs, precondition, postcondition] = &lines[..] else {
-            panic!("Wrong answer from LLM: <{}>", output)
+            eprintln!("Wrong answer from LLM: <{}>. Quitting.", output);
+            std::process::exit(1);
         };
         use std::str::FromStr;
         let inputs = inputs
