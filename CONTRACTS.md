@@ -16,10 +16,10 @@ postcondition = "/* some Rust expression */"
 # `function_tested` is a Rust path (like `my_crate::my_module::my_function`).
 function_tested = "my_crate::my_function"
 
-# `use_statements` are arrays of Rust `use` items, like `use std::collections::HashMap;`.
+# `use_statements` are arrays of Rust use trees, like `std::collections::HashMap`.
 use_statements = [
-    "use std::collections::HashMap;",
-    "use serde::Deserialize;",
+    "std::collections::HashMap",
+    "serde::Deserialize",
 ]
 
 # Inputs are arrays of named inputs, each specifying either a type or value kind.
@@ -86,12 +86,12 @@ Testify reads a list of contracts in a toml file.
   ```
 
 - **`use_statements`** *(array of strings)*  
-  An array of Rust `use` statements. Each string should be a valid Rust `use` item.  
+  An array of Rust use trees. Each string should be a valid Rust use tree.  
   For example:
   ```toml
   use_statements = [
-      "use std::collections::HashMap;",
-      "use crate::utils::*;"
+      "std::collections::HashMap",
+      "crate::utils::*"
   ]
   ```
 
@@ -169,8 +169,8 @@ postcondition = "result > 0"
 function_tested = "crate::my_function"
 
 use_statements = [
-    "use std::collections::HashMap;",
-    "use crate::helpers::some_helper;",
+    "std::collections::HashMap",
+    "crate::helpers::some_helper",
 ]
 
 [[inputs]]

@@ -112,7 +112,7 @@ mod state {
                             let [#(#names,)*] = &vec[..] else {panic!("Bad number of inputs")};
                             let (#(#names,)*): INPUTS = (#(<#types>::from_value_repr(&#names, &arena),)*);
                             let response: api::Output = ::std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                #(#use_statements)*
+                                #(use #use_statements;)*
                                 #predicate
                             })).ok();
                             response
@@ -416,7 +416,7 @@ impl ContractPool<InstantiatedContracts> {
                 .into_iter()
                 .map(|node| {
                     quote! {
-                        #(#use_statements)*
+                        #(use #use_statements;)*
                         #node
                     }
                 })

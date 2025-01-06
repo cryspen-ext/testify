@@ -22,7 +22,7 @@ pub struct Contract {
     pub postcondition: syn::Expr,
     pub span: Span,
     pub dependencies: HashMap<String, String>,
-    pub use_statements: Vec<syn::ItemUse>,
+    pub use_statements: Vec<syn::UseTree>,
 }
 ```
 

@@ -25,7 +25,7 @@ example-crate = {{path = "{}/tests/coverage/example-crate"}}
                 std::env!("CARGO_MANIFEST_DIR")
             ))
             .unwrap(),
-            use_statements: vec![syn::parse_quote! {use abstractions::*;}],
+            use_statements: vec![syn::parse_quote! {abstractions::*}],
             function_tested: Some(parse_quote! {example_crate::add_or_zero}),
         }],
         "regressions.rs",

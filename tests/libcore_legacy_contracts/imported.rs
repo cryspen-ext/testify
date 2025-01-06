@@ -44,7 +44,7 @@ abstractions = {{path = "{}/abstractions"}}
                 std::env!("CARGO_MANIFEST_DIR")
             ))
             .unwrap(),
-                use_statements: vec![syn::parse_quote!{use abstractions::*;}],
+                use_statements: vec![syn::parse_quote!{abstractions::*}],
                 function_tested: None,
             })
         }

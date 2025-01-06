@@ -141,7 +141,7 @@ pub mod serde_via {
     impl AutoSerdeVia for syn::Type {}
     impl AutoSerdeVia for syn::Expr {}
     impl AutoSerdeVia for syn::WhereClause {}
-    impl AutoSerdeVia for syn::ItemUse {}
+    impl AutoSerdeVia for syn::UseTree {}
 
     impl SerdeVia for super::Span {
         type Repr = u8;

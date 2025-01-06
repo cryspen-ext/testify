@@ -109,7 +109,7 @@ pub struct Contract {
     /// Additional `use` statements that should be in scope when evaluating the contract.
     #[serde(with = "serde_via::SerdeVia")]
     #[serde(default)]
-    pub use_statements: Vec<syn::ItemUse>,
+    pub use_statements: Vec<syn::UseTree>,
     /// The function under test, if any, represented by a `syn::Path`.
     #[serde(with = "serde_via::SerdeVia")]
     pub function_tested: Option<syn::Path>,

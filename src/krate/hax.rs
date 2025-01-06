@@ -8,7 +8,7 @@ pub enum HaxQuery {
         #[debug("{}", typ.into_token_stream())]
         typ: syn::Type,
         #[debug("{:#?}", use_statements.iter().map(|us| us.into_token_stream()).collect::<Vec<_>>())]
-        use_statements: Vec<syn::ItemUse>,
+        use_statements: Vec<syn::UseTree>,
     },
 }
 
@@ -51,7 +51,7 @@ impl quote::ToTokens for HaxQueryWithId {
                 let where_clause = &generics.where_clause;
                 quote! {
                     const _: () = {
-                        #(#use_statements)*
+                        #(use #use_statements;)*
                         fn #ident #generics(_: #typ) #where_clause {}
                     };
                 }
