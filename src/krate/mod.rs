@@ -164,32 +164,6 @@ impl Krate {
             .expect("Couldn't run `cargo build`")
     }
 
-    pub fn build(&self) -> Result<PathBuf, String> {
-        use std::process::Stdio;
-
-        let output = std::process::Command::new("cargo")
-            .arg("build")
-            .arg("--release")
-            // .env("RUSTFLAGS", "-Z threads=4")
-            .current_dir(self.path())
-            .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
-            .output()
-            .expect("Couldn't run `cargo build`");
-
-        if output.status.success() {
-            Ok(self
-                .workspace_path()
-                .join("target")
-                .join("release")
-                // .join("debug")
-                .join(self.name()))
-        } else {
-            let stderr = std::str::from_utf8(&output.stderr).unwrap();
-            Err(stderr.to_string())
-        }
-    }
-
     pub fn hax(
         &self,
     ) -> Result<Vec<hax_frontend_exporter::Item<hax_frontend_exporter::ThirBody>>, String> {

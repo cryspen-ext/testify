@@ -5,7 +5,7 @@ use crate::krate::Krate;
 use crate::prelude::*;
 use quote::quote;
 use std::io::{BufRead, BufReader, BufWriter};
-use std::process::{Child, ChildStderr, ChildStdin, ChildStdout};
+use std::process::{ChildStderr, ChildStdin, ChildStdout};
 
 /// `declare!(Name, <tokens>)` defines a struct `Name` that implement
 /// `quote::ToTokens`: when converted into a token stream, `Name`
@@ -14,6 +14,7 @@ macro_rules! declare {
     ($name:ident, $($tt:tt)*) => {
         #[allow(unused)]
         $($tt)*
+        #[allow(unused)]
         struct $name;
         impl quote::ToTokens for $name {
             fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
@@ -25,11 +26,11 @@ macro_rules! declare {
 pub(crate) use declare;
 
 pub struct Server {
-    process: Child,
     stdout: BufReader<ChildStdout>,
     stderr: BufReader<ChildStderr>,
     stdin: BufWriter<ChildStdin>,
-    krate: Krate,
+    /// `krate` is not used explicitly, but it is important to keep it around: the crate will be cleaned up on drop
+    _krate: Krate,
 }
 
 impl Server {
@@ -88,8 +89,7 @@ impl Server {
         let stderr = BufReader::new(process.stderr.take().unwrap());
         let stdin = BufWriter::new(process.stdin.take().unwrap());
         Self {
-            process,
-            krate,
+            _krate: krate,
             stdout,
             stdin,
             stderr,

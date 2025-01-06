@@ -5,9 +5,9 @@ pub enum HaxQuery {
     Type {
         #[debug("{}", generics.into_token_stream())]
         generics: syn::Generics,
-        #[debug("{}", generics.into_token_stream())]
+        #[debug("{}", typ.into_token_stream())]
         typ: syn::Type,
-        #[debug(ignore)]
+        #[debug("{:#?}", use_statements.iter().map(|us| us.into_token_stream()).collect::<Vec<_>>())]
         use_statements: Vec<syn::ItemUse>,
     },
 }
@@ -16,15 +16,6 @@ type Item = hax_frontend_exporter::Item<hax_frontend_exporter::ThirBody>;
 use hax_frontend_exporter::{FnDef, ItemKind};
 
 impl HaxQuery {
-    fn ident_string(&self) -> String {
-        use std::hash::{DefaultHasher, Hash, Hasher};
-        let mut s = DefaultHasher::new();
-        self.hash(&mut s);
-        format!("f{:016x}", s.finish())
-    }
-    fn ident(&self) -> syn::Ident {
-        syn::Ident::new(&self.ident_string(), proc_macro2::Span::call_site())
-    }
     fn result_from_item(&self, item: &Item) -> HaxQueryRes {
         match self {
             Self::Type { .. } => {
