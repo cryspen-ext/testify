@@ -35,6 +35,10 @@
       rust = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default);
 
       craneLib = (crane.mkLib pkgs).overrideToolchain rust;
+      extra-build-inputs = pkgs.lib.optionals pkgs.stdenv.isDarwin [
+        pkgs.libiconv
+        pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+      ];
       my-crate = craneLib.buildPackage {
         src = craneLib.cleanCargoSource (craneLib.path ./.);
         strictDeps = true;
@@ -44,7 +48,7 @@
           pkgs.clang
           pkgs.cmake
           pkgs.rust-bindgen
-        ];
+        ] ++ extra-build-inputs;
       };
     in {
       checks = {
@@ -65,7 +69,7 @@
           pkgs.bacon
           pkgs.cargo-expand
           pkgs.cargo-tarpaulin
-        ];
+        ] ++ extra-build-inputs;
       };
     });
 }

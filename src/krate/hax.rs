@@ -1,15 +1,14 @@
 use super::*;
-use crate::prelude::*;
 
 #[derive(fmt_derive::Debug, Clone, Hash, Eq, PartialEq)]
 pub enum HaxQuery {
     Type {
         #[debug("{}", generics.into_token_stream())]
         generics: syn::Generics,
-        #[debug("{}", generics.into_token_stream())]
+        #[debug("{}", typ.into_token_stream())]
         typ: syn::Type,
-        #[debug(ignore)]
-        use_statements: Vec<syn::ItemUse>,
+        #[debug("{:#?}", use_statements.iter().map(|us| us.into_token_stream()).collect::<Vec<_>>())]
+        use_statements: Vec<syn::UseTree>,
     },
 }
 
@@ -17,15 +16,6 @@ type Item = hax_frontend_exporter::Item<hax_frontend_exporter::ThirBody>;
 use hax_frontend_exporter::{FnDef, ItemKind};
 
 impl HaxQuery {
-    fn ident_string(&self) -> String {
-        use std::hash::{DefaultHasher, Hash, Hasher};
-        let mut s = DefaultHasher::new();
-        self.hash(&mut s);
-        format!("f{:016x}", s.finish())
-    }
-    fn ident(&self) -> syn::Ident {
-        syn::Ident::new(&self.ident_string(), proc_macro2::Span::call_site())
-    }
     fn result_from_item(&self, item: &Item) -> HaxQueryRes {
         match self {
             Self::Type { .. } => {
@@ -61,7 +51,7 @@ impl quote::ToTokens for HaxQueryWithId {
                 let where_clause = &generics.where_clause;
                 quote! {
                     const _: () = {
-                        #(#use_statements)*
+                        #(use #use_statements;)*
                         fn #ident #generics(_: #typ) #where_clause {}
                     };
                 }
@@ -81,17 +71,21 @@ pub enum HaxQueryError {
     },
 }
 
+/// Execute a non-empty slice of queries in an efficient way. First it will try to execute everything in one go. If that fails, it will try to find where the error comes from.
+///
+/// This method assumes there is at least one query.
 pub fn execute_hax_queries(
     queries: &[HaxQuery],
-    deps: &str,
+    deps: &HashMap<String, DependencySpec>,
 ) -> Result<Vec<HaxQueryRes>, HaxQueryError> {
+    assert!(!queries.is_empty());
     let mut krate = Krate::new();
     let queries: Vec<_> = queries
         .into_iter()
         .enumerate()
         .map(|(i, query)| HaxQueryWithId(query.clone(), i))
         .collect();
-    krate.add_dependency(deps);
+    krate.add_dependencies(deps);
     let items: Vec<Item> = run_or_locate_error(&queries, |queries| {
         let source = quote! {
             #(#queries)*
@@ -126,15 +120,4 @@ pub fn execute_hax_queries(
         .collect();
     assert!(result.len() == queries.len());
     Ok(result)
-}
-
-#[test]
-fn ff() {
-    // panic!(
-    //     "{:#?}",
-    //     // execute_hax_query(&[HaxQuery::Type {
-    //     //     typ: parse_quote! {(u8, [T>)},
-    //     //     generics: parse_quote! {<T>},
-    //     // },])
-    // );
 }

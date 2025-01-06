@@ -1,6 +1,5 @@
 use syn::visit_mut::*;
 
-pub(crate) mod rules;
 pub(crate) mod syn_utils;
 pub(crate) mod visitors;
 

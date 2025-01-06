@@ -52,7 +52,7 @@ mod state {
         /// Create a `ParametricContracts` structs: this uses hax to
         /// resolve the input types of the contracts, and sets up a
         /// precondition server.
-        pub fn new(contracts: &[Contract], deps: &str) -> Self {
+        pub fn new(contracts: &[Contract], deps: &HashMap<String, DependencySpec>) -> Self {
             assert!(contracts.iter().all(Self::check));
 
             let types = {
@@ -112,7 +112,7 @@ mod state {
                             let [#(#names,)*] = &vec[..] else {panic!("Bad number of inputs")};
                             let (#(#names,)*): INPUTS = (#(<#types>::from_value_repr(&#names, &arena),)*);
                             let response: api::Output = ::std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                                #(#use_statements)*
+                                #(use #use_statements;)*
                                 #predicate
                             })).ok();
                             response
@@ -232,7 +232,7 @@ impl ContractPool<GenericContracts> {
     /// Creates a fresh pool
     pub fn new_pools(contracts: Vec<crate::Contract>) -> Vec<Self> {
         let mut groups: Vec<(crate::Contract, Vec<crate::Contract>)> = vec![];
-        for mut contract in contracts {
+        for contract in contracts {
             if let Some((repr, group)) = groups
                 .iter_mut()
                 .find(|(candidate, _)| candidate.dependencies_compatible_with(&contract))
@@ -251,7 +251,7 @@ impl ContractPool<GenericContracts> {
         }
         groups
             .into_iter()
-            .map(|(repr, group)| Self::new(group))
+            .map(|(_, group)| Self::new(group))
             .collect()
     }
 
@@ -264,7 +264,7 @@ impl ContractPool<GenericContracts> {
     }
 
     pub fn instantiate_types(self) -> ContractPool<ParametricContracts> {
-        let state = ParametricContracts::new(&self.contracts, &self.dependencies_string());
+        let state = ParametricContracts::new(&self.contracts, &self.dependencies());
         self.retype(state)
             .expect("Generic contracts are not supported yet")
     }
@@ -274,9 +274,9 @@ pub fn arbitrary<T: for<'a> arbitrary::Arbitrary<'a>>() -> T {
     let mut rng = rand::thread_rng();
     let raw_data: &mut [u8] = &mut [0; 512];
     rng.fill_bytes(raw_data);
-    use arbitrary::Arbitrary as _;
+    // use arbitrary::Arbitrary as _;
     use arbitrary::Unstructured;
-    use rand::RngCore as _;
+    use rand::RngCore;
     T::arbitrary(&mut Unstructured::new(raw_data)).unwrap()
 }
 
@@ -320,7 +320,7 @@ impl ContractPool<ParametricContracts> {
         let mut instantiated_contracts = vec![];
         for (i, contract) in self.contracts.iter().enumerate() {
             let mut instances = vec![];
-            for j in 1..100 {
+            for _ in 1..100 {
                 if instances.len() >= 5 {
                     break;
                 }
@@ -360,7 +360,7 @@ impl ContractPool<ParametricContracts> {
 
 fn eval_expressions(
     exprs: &[proc_macro2::TokenStream],
-    dependencies: &str,
+    dependencies: &HashMap<String, DependencySpec>,
 ) -> Result<Vec<Result<String, String>>, (String, String)> {
     declare! {
         Api,
@@ -369,7 +369,7 @@ fn eval_expressions(
         }
     }
     let mut krate = Krate::new();
-    krate.add_dependency(dependencies);
+    krate.add_dependencies(dependencies);
     let n = exprs.len();
     let program = quote! {
         #Api
@@ -416,7 +416,7 @@ impl ContractPool<InstantiatedContracts> {
                 .into_iter()
                 .map(|node| {
                     quote! {
-                        #(#use_statements)*
+                        #(use #use_statements;)*
                         #node
                     }
                 })
@@ -424,7 +424,7 @@ impl ContractPool<InstantiatedContracts> {
             nodes.extend(contract_nodes);
         }
 
-        let dependencies = self.dependencies_string();
+        let dependencies = self.dependencies();
         let nodes = run_or_locate_error(&nodes, |node| eval_expressions(node, &dependencies))
             .unwrap_or_else(|(context, (stderr, program))| {
                 eprintln!(
@@ -512,9 +512,9 @@ impl ContractPool<InstantiatedContracts> {
                         // `krate` is a dummy crate whose dependencies
                         // are matching dependencies declared in the
                         // contracts `contracts`
-                        let mut krate = {
+                        let krate = {
                             let mut krate = Krate::new();
-                            krate.add_dependency(&self.dependencies_string());
+                            krate.add_dependencies(&self.dependencies());
                             krate
                         };
                         // Runs `cargo metadata`, and finds the path
@@ -524,7 +524,8 @@ impl ContractPool<InstantiatedContracts> {
                         manifest_path.parent().unwrap().to_path_buf()
                     };
                     // We duplicate the crate `krate_name` so that we can edit it freely
-                    Krate::duplicate_crate(&krate_path, self.dependencies().into_iter()).unwrap()
+                    Krate::duplicate_crate(&krate_path, &self.dependencies().into_iter().collect())
+                        .unwrap()
                 };
 
                 // Stringify the path
@@ -612,25 +613,20 @@ impl<State: IsState> ContractPool<State> {
 
     /// Returns the Cargo dependencies for this pool. This function
     /// assumes contracts dependencies are compatible. If this
-    /// invariant is not met, the funciton panics.
-    pub fn dependencies(&self) -> HashMap<String, String> {
+    /// invariant is not met, the function panics.
+    pub fn dependencies(&self) -> HashMap<String, DependencySpec> {
         let mut deps = HashMap::new();
         for contract in self.contracts() {
             for (dependency, version) in &contract.dependencies {
-                if let Some(previous_version) =
-                    deps.insert(dependency.to_string(), version.to_string())
+                if let Some(previous_version) = deps.insert(dependency.to_string(), version.clone())
                 {
-                    assert_eq!(previous_version, version.as_str());
+                    assert_eq!(&previous_version, version);
                 }
             }
         }
         deps
     }
     pub fn dependencies_string(&self) -> String {
-        self.dependencies()
-            .iter()
-            .map(|(dependency, version)| format!("{dependency} = {version}"))
-            .collect::<Vec<_>>()
-            .join("\n")
+        dependencies_to_string(&self.dependencies())
     }
 }

@@ -22,7 +22,7 @@ pub struct Contract {
     pub postcondition: syn::Expr,
     pub span: Span,
     pub dependencies: HashMap<String, String>,
-    pub use_statements: Vec<syn::ItemUse>,
+    pub use_statements: Vec<syn::UseTree>,
 }
 ```
 
@@ -59,7 +59,15 @@ You can run the two following demos, that are hardcoding examples:
 
 - `cargo run --bin test-coverage`
 - `cargo run --bin test-libcore-legacy-contracts`
-
+- LLM generation of contracts.  
+  The following commands will find any contracts without pre/post in `test-llm.toml` and replace them with LLM generated contracts.  
+  The format of contracts is documented in `CONTRACTS.md`.  
+  1. `cd tests`
+  2. **(with ollama)** `cargo run test-llm.toml auto --ollama`  
+     This assumes a ollama server is up and running on port 11434 and that it has the model `qwen2.5-coder:7b` installed. To set it up, run `ollama serve` to start the ollama server and then `ollama run "qwen2.5-coder:7b"` in another terminal.
+  3. **(without ollama)** `cargo run test-llm.toml auto`  
+     This will interactively ask you to copy paste some prompt in, say, ChatGPT. Then, you'll be asked to paste back the anwser.
+  
 
 ## Todos
  - A CLI frontend

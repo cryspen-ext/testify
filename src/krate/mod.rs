@@ -12,7 +12,7 @@ use workspace::lock_workspace;
 #[derive(Debug)]
 pub struct Krate {
     id: workspace::KrateId,
-    dependencies: Vec<String>,
+    dependencies: HashMap<String, DependencySpec>,
 }
 
 impl Krate {
@@ -20,7 +20,7 @@ impl Krate {
         let mut workspace = lock_workspace();
         Self {
             id: workspace.add_crate(),
-            dependencies: vec![],
+            dependencies: HashMap::new(),
         }
     }
 
@@ -32,7 +32,7 @@ impl Krate {
     /// Create a crate by using the source of an existing crate
     pub fn duplicate_crate(
         path: &Path,
-        extra_deps: impl Iterator<Item = (String, String)>,
+        extra_deps: &HashMap<String, DependencySpec>,
     ) -> std::io::Result<Self> {
         use std::path::Path;
         use std::{fs, io};
@@ -69,12 +69,23 @@ impl Krate {
 
         fn cargo_add(
             krate: &Krate,
-            extra_deps: impl Iterator<Item = (String, String)>,
+            extra_deps: &HashMap<String, DependencySpec>,
         ) -> io::Result<()> {
-            let mut cmd = krate.command("cargo");
-            cmd.arg("add");
-            cmd.args(extra_deps.map(|(dep, version)| format!("{dep}@{version}")));
-            cmd.output()?;
+            let manifest_path = krate.path().join("Cargo.toml");
+            let mut manifest: toml::Value =
+                toml::from_str(&fs::read_to_string(&manifest_path)?).unwrap();
+            manifest["dependencies"] = manifest
+                .get("dependencies")
+                .cloned()
+                .unwrap_or(toml::value::Value::Table(toml::Table::default()));
+            let toml::Value::Table(dependencies) = &mut manifest["dependencies"] else {
+                panic!()
+            };
+            for (k, v) in extra_deps {
+                let v = toml::to_string(v).unwrap();
+                dependencies.insert(k.to_string(), toml::from_str(&v).unwrap());
+            }
+            fs::write(&manifest_path, toml::to_string(&manifest).unwrap())?;
             Ok(())
         }
 
@@ -110,8 +121,18 @@ impl Krate {
 
     /// Finds the path of a crate that exists in the dependency graph
     /// for the current workspace
+    #[tracing::instrument]
     pub fn manifest_path_of_crate(&self, krate: &str) -> Option<PathBuf> {
+        tracing::trace!("self.metadata = {:#?}", self.metadata());
         let metadata = self.metadata().ok()?;
+        tracing::trace!(
+            "metadata.packages = {}",
+            metadata
+                .packages
+                .iter()
+                .map(|pkg| format!("{}", pkg.name))
+                .join(", "),
+        );
         let package = metadata.packages.iter().find(|pkg| {
             pkg.targets.iter().any(|target| {
                 target.name == krate && target.kind.contains(&cargo_metadata::TargetKind::Lib)
@@ -143,32 +164,6 @@ impl Krate {
             .expect("Couldn't run `cargo build`")
     }
 
-    pub fn build(&self) -> Result<PathBuf, String> {
-        use std::process::Stdio;
-
-        let output = std::process::Command::new("cargo")
-            .arg("build")
-            .arg("--release")
-            // .env("RUSTFLAGS", "-Z threads=4")
-            .current_dir(self.path())
-            .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
-            .output()
-            .expect("Couldn't run `cargo build`");
-
-        if output.status.success() {
-            Ok(self
-                .workspace_path()
-                .join("target")
-                .join("release")
-                // .join("debug")
-                .join(self.name()))
-        } else {
-            let stderr = std::str::from_utf8(&output.stderr).unwrap();
-            Err(stderr.to_string())
-        }
-    }
-
     pub fn hax(
         &self,
     ) -> Result<Vec<hax_frontend_exporter::Item<hax_frontend_exporter::ThirBody>>, String> {
@@ -179,6 +174,7 @@ impl Krate {
             .current_dir(self.path())
             .stderr(Stdio::piped())
             .stdout(Stdio::piped())
+            .env("RUST_LOG", "")
             .output()
             .expect("Couldn't run `cargo run`");
 
@@ -188,6 +184,7 @@ impl Krate {
         if output.status.success() {
             let items: Vec<hax_frontend_exporter::Item<hax_frontend_exporter::ThirBody>> =
                 serde_json::from_str(&stdout).map_err(|e| {
+                    println!("{}", stdout);
                     format!("Error parsing hax output: stdout:\n{stdout}\n\nstderr:{stderr}\n\nerror:{e:?}")
                 })?;
             Ok(items)
@@ -197,13 +194,25 @@ impl Krate {
     }
 
     pub fn use_serde(&mut self) {
-        self.add_dependency(r#"serde_json = "1""#);
-        self.add_dependency(r#"serde = { version = "1.0", features = ["derive"] }"#);
+        self.add_dependencies(
+            &toml::from_str(
+                r#"
+serde_json = "1"
+serde = { version = "1.0", features = ["derive"] }
+        "#,
+            )
+            .unwrap(),
+        );
     }
-    pub fn add_dependency(&mut self, deps: &str) {
+    pub fn add_dependencies(&mut self, deps: &HashMap<String, DependencySpec>) {
+        for (k, v) in deps {
+            self.add_dependency(k, v);
+        }
+    }
+    pub fn add_dependency(&mut self, dep: &str, spec: &DependencySpec) {
         let workspace = lock_workspace();
-        self.dependencies.push(deps.into());
-        workspace.write_crate_manifest(self.id, &self.dependencies.join("\n"))
+        self.dependencies.insert(dep.to_string(), spec.clone());
+        workspace.write_crate_manifest(self.id, &self.dependencies)
     }
     pub fn source(&self, source: &str) {
         let source = prettyplease::unparse(&syn::parse_str(source).expect(source));
@@ -243,7 +252,7 @@ pub fn run_or_locate_error<'a, Item: std::fmt::Debug, Output, Error: Clone>(
                 let err = (items.iter().collect(), err.clone());
                 match items {
                     [] => unreachable!(),
-                    [item] => {
+                    [_item] => {
                         return Err(err.clone());
                     }
                     _ => {

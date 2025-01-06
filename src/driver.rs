@@ -1,8 +1,6 @@
 use crate::prelude::*;
 use crate::*;
 use colored::Colorize;
-use std::collections::HashMap;
-use syn::parse_quote;
 
 /// Make sure a binary is in PATH.
 fn require_binary(bin: &str) {
@@ -12,14 +10,16 @@ fn require_binary(bin: &str) {
     }
 }
 
-/// Run the default "driver" for a list of contracts.
-pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
+pub fn setup_tracing() {
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .compact()
         .finish();
     tracing::subscriber::set_global_default(subscriber).unwrap();
+}
 
+/// Run the default "driver" for a list of contracts.
+pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
     require_binary("cargo-tarpaulin");
 
     let contracts_len = contracts.len();
@@ -31,9 +31,8 @@ pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
         format!("{}", pools.len()).bold()
     );
 
-    let outfile = "assertions.rs";
-    use std::{fs, io::Write};
-    fs::remove_file(outfile);
+    use std::fs;
+    let _ = fs::remove_file(&outfile);
 
     let mut resulting_assertions = vec![];
     let mut coverage_reports = vec![];

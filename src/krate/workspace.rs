@@ -1,7 +1,6 @@
+use crate::prelude::*;
 use once_cell::sync::Lazy;
-use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq)]
@@ -57,8 +56,13 @@ members = {:#?}"#,
     pub(super) fn write_crate_main(&self, krate_id: KrateId, source: &str) {
         fs::write(self.crate_path(krate_id).join("main.rs"), source).unwrap();
     }
-    pub(super) fn write_crate_manifest(&self, krate_id: KrateId, dependencies: &str) {
+    pub(super) fn write_crate_manifest(
+        &self,
+        krate_id: KrateId,
+        dependencies: &HashMap<String, DependencySpec>,
+    ) {
         let name = krate_id.name();
+        let dependencies = dependencies_to_string(dependencies);
         fs::write(
             self.crate_path(krate_id).join("Cargo.toml"),
             format!(
@@ -71,9 +75,9 @@ edition = "2021"
 name = "{name}"
 path = "main.rs"
 
-[dependencies]
-marshalling = {{path = "{}/marshalling"}}
 {dependencies}
+[dependencies.marshalling]
+path = "{}/marshalling"
 "#,
                 std::env!("CARGO_MANIFEST_DIR")
             ),
@@ -90,7 +94,7 @@ marshalling = {{path = "{}/marshalling"}}
 
         self.crates.insert(krate_id);
 
-        self.write_crate_manifest(krate_id, "");
+        self.write_crate_manifest(krate_id, &HashMap::default());
         self.write_crate_main(krate_id, "fn main() {}");
         self.write_workspace_manifest();
 

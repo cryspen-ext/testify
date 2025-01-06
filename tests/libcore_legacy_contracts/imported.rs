@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use testify::{Contract, Input, InputKind, Span};
 
 macro_rules! contract {
@@ -38,13 +37,14 @@ macro_rules! contract {
                 precondition: syn::parse_quote!{$pre_body},
                 postcondition: syn::parse_quote!{$post_body},
                 span: Span::dummy(),
-                dependencies: HashMap::from_iter([
-                    (
-                        "abstractions".to_string(),
-                        format!(r#"{{path = "{}/abstractions"}}"#, std::env!("CARGO_MANIFEST_DIR"))
-                    )
-                ].into_iter()),
-                use_statements: vec![syn::parse_quote!{use abstractions::*;}],
+                dependencies: toml::from_str(&format!(
+                r#"
+abstractions = {{path = "{}/abstractions"}}
+"#,
+                std::env!("CARGO_MANIFEST_DIR")
+            ))
+            .unwrap(),
+                use_statements: vec![syn::parse_quote!{abstractions::*}],
                 function_tested: None,
             })
         }
