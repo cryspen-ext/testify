@@ -13,10 +13,21 @@ mod tarpaulin_cli_wrapper {
 
     /// Represents the statistics gathered for a particular line by tarpaulin.
     #[derive(Serialize, Deserialize, Debug, Clone)]
-    pub struct Stats {
+    pub enum Stats {
         /// The number of times the line was covered.
-        #[serde(rename = "Line")]
-        pub line: usize,
+        Line(usize),
+        /// The number of times the branch was covered.
+        Branch(usize),
+        /// The number of times the condition was covered.
+        Condition(usize),
+    }
+
+    impl Stats {
+        pub fn covered(&self) -> bool {
+            match self {
+                Stats::Line(n) | Stats::Branch(n) | Stats::Condition(n) => *n > 0,
+            }
+        }
     }
 
     /// Represents a trace of a particular line, including its statistics.
@@ -87,7 +98,7 @@ impl From<Trace> for LineReport {
     fn from(trace: Trace) -> Self {
         Self {
             line: trace.line,
-            covered: trace.stats.line > 0,
+            covered: trace.stats.covered(),
         }
     }
 }
