@@ -19,8 +19,9 @@ pub struct Workspace {
 }
 
 static WORKSPACE: Lazy<Mutex<Workspace>> = Lazy::new(|| {
-    let root = PathBuf::from("/tmp/testify");
+    let root = std::env::temp_dir().join("testify");
     std::fs::create_dir_all(&root).unwrap();
+    let root = std::fs::canonicalize(&root).unwrap();
     let workspace = Workspace {
         root,
         crates: HashSet::new(),
