@@ -4,8 +4,6 @@ Status:
  - most of the functionality is implemented
  - most of the contract of the PoC are going through (all but those
    with contracts with universally quantified types)
- - there is no CLI, no input language
- - there are bugs
  - there is a begining of error handling, but I need to improve that
  - types are infered via hax
 
@@ -68,11 +66,6 @@ You can run the two following demos, that are hardcoding examples:
   3. **(without ollama)** `cargo run test-llm.toml auto`  
      This will interactively ask you to copy paste some prompt in, say, ChatGPT. Then, you'll be asked to paste back the anwser.
   
-
-## Todos
- - A CLI frontend
- - An input language for contracts: currently, `imported.rs` defines a big vector of `Contract`s via a macro.
- - Use hax to get type definitions, so that we can generate printers and marshalling automatically
 
 ## Test
 To test this, you need to make sure you have hax installed and in
