@@ -135,7 +135,7 @@ impl Krate {
         );
         let package = metadata.packages.iter().find(|pkg| {
             pkg.targets.iter().any(|target| {
-                target.name == krate && target.kind.contains(&cargo_metadata::TargetKind::Lib)
+                target.name == krate // && target.kind.contains(&cargo_metadata::TargetKind::Lib)
             })
         })?;
         Some(package.manifest_path.clone().into())
