@@ -17,6 +17,7 @@ use quote::ToTokens;
 /// Represents the kind of input used within a `Contract`. Inputs can be either a value
 /// (with a type and optional aliases) or a type (with `WhereClause` bounds).
 #[derive(fmt_derive::Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum InputKind {
     /// A value input has a `syn::Type` and zero or more aliases (alternative names) by which
     /// this input can be referenced. During instantiation, these names will be substituted
@@ -41,6 +42,7 @@ pub enum InputKind {
 pub struct Input {
     /// The name of this input, used for substitution and identification.
     pub name: InputName,
+    #[serde(flatten)]
     /// The kind of input (value with type and aliases, or type with bounds).
     pub kind: InputKind,
 }
