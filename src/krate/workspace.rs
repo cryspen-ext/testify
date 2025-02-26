@@ -8,7 +8,7 @@ pub(super) struct KrateId(usize);
 
 impl KrateId {
     pub(super) fn name(&self) -> String {
-        format!("crate_{}", self.0).to_string()
+        format!("testify_reserved_named_crate_{}", self.0).to_string()
     }
 }
 

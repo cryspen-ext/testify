@@ -525,7 +525,7 @@ impl ContractPool<InstantiatedContracts> {
                         // to the `Cargo.toml` of the crate `krate_name`.
                         let manifest_path = krate
                             .manifest_path_of_crate(krate_name)
-                            .expect(&format!("Could not find {krate_name}"));
+                            .expect(&format!("Could not find {krate_name}: please make sure your contract declares a dependency on that crate. The dependencies currently available are: {:#?}.", self.dependencies()));
                         // Returns the parent folder of the `Cargo.toml` manifest
                         manifest_path.parent().unwrap().to_path_buf()
                     };
