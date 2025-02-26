@@ -1,0 +1,9 @@
+[[contracts]]
+description = "Description of what the contract is testing."
+function_tested = "crate_0::double"
+inputs = [{name = "x", typ = "u8", aliases = []}]
+precondition = "x < 127"
+postcondition = "x + x == double(x)"
+
+[contracts.dependencies.crate_0]
+path = "."
