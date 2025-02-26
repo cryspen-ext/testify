@@ -424,6 +424,10 @@ impl ContractPool<InstantiatedContracts> {
             nodes.extend(contract_nodes);
         }
 
+        if nodes.is_empty() {
+            return;
+        }
+
         let dependencies = self.dependencies();
         let nodes = run_or_locate_error(&nodes, |node| eval_expressions(node, &dependencies))
             .unwrap_or_else(|(context, (stderr, program))| {
