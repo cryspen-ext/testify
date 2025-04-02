@@ -8,7 +8,7 @@ Status:
  - types are infered via hax
 
 ## Prerequisite
- - `tarpaulin`: `cargo install tarpaulin`
+ - `cargo-tarpaulin`: `cargo install cargo-tarpaulin`
 
 ## General design
 A contract is defined as the following (see in `lib.rs`):
