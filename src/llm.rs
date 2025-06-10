@@ -1,5 +1,5 @@
-use crate::krate::Krate;
 use crate::prelude::*;
+use crate::{default_tests_number, krate::Krate};
 
 /// Represents the context needed to generate a prompt for contract generation.
 /// This includes the item being tested, its contents, related items, and related contracts.
@@ -29,6 +29,7 @@ impl Contract {
             dependencies: HashMap::new(),
             use_statements: vec![],
             function_tested: None,
+            tests: default_tests_number(),
         }
     }
 }

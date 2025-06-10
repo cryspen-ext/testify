@@ -37,6 +37,7 @@ macro_rules! contract {
                 precondition: syn::parse_quote!{$pre_body},
                 postcondition: syn::parse_quote!{$post_body},
                 span: Span::dummy(),
+                tests: 5,
                 dependencies: toml::from_str(&format!(
                 r#"
 abstractions = {{path = "{}/abstractions"}}
