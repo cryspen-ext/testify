@@ -15,7 +15,12 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Generates tests and check coverage
-    Generate { output: PathBuf },
+    Generate {
+        output: PathBuf,
+        /// Check for coverage of tests
+        #[clap(long, short, action)]
+        coverage: bool,
+    },
     /// Auto complete empty contracts
     Auto {
         #[arg(long)]
@@ -38,7 +43,9 @@ fn main() {
     contracts.iter_mut().for_each(|c| c.normalize_paths());
 
     match &cli.command {
-        Command::Generate { output } => testify::driver::run(contracts, output),
+        Command::Generate { output, coverage } => {
+            testify::driver::run(contracts, output, *coverage)
+        }
         Command::Auto { ollama } => {
             if *ollama {
                 let mut llm = testify::llm::LLM.lock().unwrap();
