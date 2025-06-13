@@ -19,7 +19,7 @@ pub fn setup_tracing() {
 }
 
 /// Run the default "driver" for a list of contracts.
-pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
+pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>, coverage: bool) {
     require_binary("cargo-tarpaulin");
 
     let contracts_len = contracts.len();
@@ -38,15 +38,27 @@ pub fn run(contracts: Vec<Contract>, outfile: impl AsRef<Path>) {
     let mut coverage_reports = vec![];
 
     for (nth, pool) in pools.into_iter().enumerate() {
-        println!(" ① Instantiating types (pool {})...", nth + 1);
+        let mut step: usize = 0;
+        macro_rules! log {
+            ($format:literal $($r:tt)*) => {
+                println!(concat!(" {} ", $format), ["①", "②", "③", "④", "⑤"][step] $($r)*);
+                #[allow(unused)]
+                {
+                    step += 1;
+                }
+            };
+        }
+        log!("Instantiating types (pool {})...", nth + 1);
         let pool = pool.instantiate_types();
-        println!(" ② Instantiating values (pool {})...", nth + 1);
+        log!("Instantiating values (pool {})...", nth + 1);
         let mut pool = pool.instantiate_values();
-        println!(" ③ Computing eval nodes (pool {})...", nth + 1);
+        log!("Computing eval nodes (pool {})...", nth + 1);
         pool.compute_eval_nodes();
-        println!(" ④ Computing coverage (pool {})...", nth + 1);
-        coverage_reports.extend(pool.compute_coverage());
-        println!(" ⑤ Done! Saving assertions (pool {}).", nth + 1);
+        if coverage {
+            log!("Computing coverage (pool {})...", nth + 1);
+            coverage_reports.extend(pool.compute_coverage());
+        }
+        log!("Done! Saving assertions (pool {}).", nth + 1);
 
         let assertions = pool
             .contracts()
