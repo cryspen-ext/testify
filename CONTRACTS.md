@@ -106,6 +106,10 @@ Testify reads a list of contracts in a toml file.
 - **`inputs`** *(array of `Input` tables)*  
   Each entry describes one input necessary for the contract. Inputs can either define a value-like input or a type parameter. See **`Input`** below.
 
+- **`seed`** *(optional u64)*  
+  Sets a seed for instantiation contracts with random inputs.
+  By default, the hash of the contract will be picked as a stable seed.
+
 ### `Input`
 
 Each `Input` is specified within `[[inputs]]` arrays. An `Input` always has:
