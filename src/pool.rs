@@ -272,8 +272,8 @@ impl ContractPool<GenericContracts> {
 
 pub fn arbitrary_with_seed<T: for<'a> arbitrary::Arbitrary<'a>>(seed: u64) -> T {
     // Initialize a reproducible RNG with the given seed
-    use rand::{RngCore, SeedableRng};
-    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+    use rand_chacha::rand_core::{RngCore, SeedableRng};
+    let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(seed);
 
     let mut raw_data = [0u8; 512];
     rng.fill_bytes(&mut raw_data);
