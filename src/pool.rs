@@ -320,8 +320,8 @@ impl ContractPool<ParametricContracts> {
         let mut instantiated_contracts = vec![];
         for (i, contract) in self.contracts.iter().enumerate() {
             let mut instances = vec![];
-            for _ in 1..100 {
-                if instances.len() >= 5 {
+            for _ in 1..(contract.tests * 20) {
+                if instances.len() >= contract.tests {
                     break;
                 }
                 let types = &self.state.types[i];

@@ -106,6 +106,9 @@ Testify reads a list of contracts in a toml file.
 - **`inputs`** *(array of `Input` tables)*  
   Each entry describes one input necessary for the contract. Inputs can either define a value-like input or a type parameter. See **`Input`** below.
 
+- **`tests`** *(positive integer, default to `5`)*
+  The numbers of tests to generate for this contract.
+
 ### `Input`
 
 Each `Input` is specified within `[[inputs]]` arrays. An `Input` always has:
