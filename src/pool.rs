@@ -332,8 +332,8 @@ impl ContractPool<ParametricContracts> {
                 move || (current, current += 1).0
             };
             let mut instances = vec![];
-            for _ in 1..100 {
-                if instances.len() >= 5 {
+            for _ in 1..(contract.tests * 20) {
+                if instances.len() >= contract.tests {
                     break;
                 }
                 let types = &self.state.types[i];

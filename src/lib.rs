@@ -81,6 +81,11 @@ impl Default for DependencySpec {
     }
 }
 
+/// Default number of tests to run
+fn default_tests_number() -> usize {
+    5
+}
+
 /// A `Contract` defines a set of inputs, a description, a precondition, and a postcondition.
 /// It can also contain additional data such as dependencies, use-statements, and an optional
 /// tested function. Contracts can be instantiated with concrete inputs and then evaluated.
@@ -118,6 +123,9 @@ pub struct Contract {
     /// Seed for randomness
     #[serde(default)]
     pub seed: Option<u64>,
+    /// Number of tests to generate. 5 by default.
+    #[serde(default = "default_tests_number")]
+    pub tests: usize,
 }
 
 impl std::hash::Hash for Contract {

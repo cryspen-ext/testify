@@ -110,6 +110,9 @@ Testify reads a list of contracts in a toml file.
   Sets a seed for instantiation contracts with random inputs.
   By default, the hash of the contract will be picked as a stable seed.
 
+- **`tests`** *(positive integer, default to `5`)*
+  The numbers of tests to generate for this contract.
+
 ### `Input`
 
 Each `Input` is specified within `[[inputs]]` arrays. An `Input` always has:
