@@ -37,12 +37,13 @@ macro_rules! contract {
                 precondition: syn::parse_quote!{$pre_body},
                 postcondition: syn::parse_quote!{$post_body},
                 span: Span::dummy(),
+                seed: None,
                 tests: 5,
                 dependencies: toml::from_str(&format!(
                 r#"
 abstractions = {{path = "{}/abstractions"}}
 "#,
-                std::env!("CARGO_MANIFEST_DIR")
+                std::env!("CARGO_MANIFEST_DIR"),
             ))
             .unwrap(),
                 use_statements: vec![syn::parse_quote!{abstractions::*}],

@@ -19,7 +19,11 @@ impl HaxQuery {
     fn result_from_item(&self, item: &Item) -> HaxQueryRes {
         match self {
             Self::Type { .. } => {
-                let ItemKind::Fn(_, FnDef { params, .. }) = &item.kind else {
+                let ItemKind::Fn {
+                    def: FnDef { params, .. },
+                    ..
+                } = &item.kind
+                else {
                     panic!("Invariant broken: expected function, got {item:?}");
                 };
                 let [p] = &params[..] else {

@@ -16,7 +16,7 @@ use quote::ToTokens;
 
 /// Represents the kind of input used within a `Contract`. Inputs can be either a value
 /// (with a type and optional aliases) or a type (with `WhereClause` bounds).
-#[derive(fmt_derive::Debug, Clone, Serialize, Deserialize)]
+#[derive(fmt_derive::Debug, Clone, Serialize, Deserialize, Hash)]
 #[serde(untagged)]
 pub enum InputKind {
     /// A value input has a `syn::Type` and zero or more aliases (alternative names) by which
@@ -38,7 +38,7 @@ pub enum InputKind {
 }
 
 /// A named input that forms part of a `Contract`. Each input has a name and a specific `InputKind`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub struct Input {
     /// The name of this input, used for substitution and identification.
     pub name: InputName,
@@ -49,7 +49,7 @@ pub struct Input {
 
 /// Represents a span of code or file content. Contains line-column information, byte offset,
 /// and optional file location. Useful for error reporting and diagnostics.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct Span {
     /// The starting line and column of this span.
     pub start: proc_macro2::LineColumn,
@@ -120,9 +120,28 @@ pub struct Contract {
     /// The function under test, if any, represented by a `syn::Path`.
     #[serde(with = "serde_via::SerdeVia")]
     pub function_tested: Option<syn::Path>,
+    /// Seed for randomness
+    #[serde(default)]
+    pub seed: Option<u64>,
     /// Number of tests to generate. 5 by default.
     #[serde(default = "default_tests_number")]
     pub tests: usize,
+}
+
+impl std::hash::Hash for Contract {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inputs.hash(state);
+        self.description.hash(state);
+        self.precondition.hash(state);
+        self.postcondition.hash(state);
+        self.span.hash(state);
+        for elem in &self.dependencies {
+            format!("{elem:?}").hash(state);
+        }
+        self.use_statements.hash(state);
+        self.function_tested.hash(state);
+        self.seed.hash(state);
+    }
 }
 
 impl Contract {
@@ -407,6 +426,7 @@ fn concretization() {
         dependencies: HashMap::new(),
         function_tested: None,
         use_statements: vec![],
+        seed: None,
     };
 
     for pool in pool::ContractPool::new_pools(vec![contract]) {

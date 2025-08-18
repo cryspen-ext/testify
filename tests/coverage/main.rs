@@ -28,6 +28,7 @@ example-crate = {{path = "{}/tests/coverage/example-crate"}}
             tests: 5,
             use_statements: vec![syn::parse_quote! {abstractions::*}],
             function_tested: Some(parse_quote! {example_crate::add_or_zero}),
+            seed: None,
         }],
         "regressions.rs",
         true,
