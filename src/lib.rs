@@ -115,6 +115,9 @@ pub struct Contract {
     /// The function under test, if any, represented by a `syn::Path`.
     #[serde(with = "serde_via::SerdeVia")]
     pub function_tested: Option<syn::Path>,
+    /// Seed for randomness
+    #[serde(default)]
+    pub seed: Option<u64>,
 }
 
 impl std::hash::Hash for Contract {
@@ -415,6 +418,7 @@ fn concretization() {
         dependencies: HashMap::new(),
         function_tested: None,
         use_statements: vec![],
+        seed: None,
     };
 
     for pool in pool::ContractPool::new_pools(vec![contract]) {

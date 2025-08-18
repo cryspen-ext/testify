@@ -270,40 +270,43 @@ impl ContractPool<GenericContracts> {
     }
 }
 
-pub fn arbitrary<T: for<'a> arbitrary::Arbitrary<'a>>() -> T {
-    let mut rng = rand::thread_rng();
-    let raw_data: &mut [u8] = &mut [0; 512];
-    rng.fill_bytes(raw_data);
-    // use arbitrary::Arbitrary as _;
-    use arbitrary::Unstructured;
-    use rand::RngCore;
-    T::arbitrary(&mut Unstructured::new(raw_data)).unwrap()
+pub fn arbitrary_with_seed<T: for<'a> arbitrary::Arbitrary<'a>>(seed: u64) -> T {
+    // Initialize a reproducible RNG with the given seed
+    use rand::{RngCore, SeedableRng};
+    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+
+    let mut raw_data = [0u8; 512];
+    rng.fill_bytes(&mut raw_data);
+
+    let mut unstructured = arbitrary::Unstructured::new(&raw_data);
+    T::arbitrary(&mut unstructured).unwrap()
 }
 
 use hax_frontend_exporter::{IntTy, UintTy};
 // This should generate an AST
-fn generate_for_type(ty: &Ty) -> (serde_json::Value, String) {
+fn generate_for_type(seed: u64, ty: &Ty) -> (serde_json::Value, String) {
     use marshalling::*;
     fn rand<T: ToValueRepr + ToRustExpr + for<'a> arbitrary::Arbitrary<'a>>(
+        seed: u64,
     ) -> (serde_json::Value, String) {
-        let value = arbitrary::<T>();
+        let value = arbitrary_with_seed::<T>(seed);
         let repr = value.to_value_repr();
         let expr = value.to_rust_expr();
         (repr, expr)
     }
     match ty.kind() {
-        TyKind::Uint(UintTy::U8) => rand::<u8>(),
-        TyKind::Uint(UintTy::U16) => rand::<u16>(),
-        TyKind::Uint(UintTy::U32) => rand::<u32>(),
-        TyKind::Uint(UintTy::U64) => rand::<u64>(),
-        TyKind::Uint(UintTy::U128) => rand::<u128>(),
-        TyKind::Uint(UintTy::Usize) => rand::<usize>(),
-        TyKind::Int(IntTy::I8) => rand::<i8>(),
-        TyKind::Int(IntTy::I16) => rand::<i16>(),
-        TyKind::Int(IntTy::I32) => rand::<i32>(),
-        TyKind::Int(IntTy::I64) => rand::<i64>(),
-        TyKind::Int(IntTy::I128) => rand::<i128>(),
-        TyKind::Int(IntTy::Isize) => rand::<isize>(),
+        TyKind::Uint(UintTy::U8) => rand::<u16>(seed),
+        TyKind::Uint(UintTy::U16) => rand::<u16>(seed),
+        TyKind::Uint(UintTy::U32) => rand::<u32>(seed),
+        TyKind::Uint(UintTy::U64) => rand::<u64>(seed),
+        TyKind::Uint(UintTy::U128) => rand::<u128>(seed),
+        TyKind::Uint(UintTy::Usize) => rand::<usize>(seed),
+        TyKind::Int(IntTy::I8) => rand::<i8>(seed),
+        TyKind::Int(IntTy::I16) => rand::<i16>(seed),
+        TyKind::Int(IntTy::I32) => rand::<i32>(seed),
+        TyKind::Int(IntTy::I64) => rand::<i64>(seed),
+        TyKind::Int(IntTy::I128) => rand::<i128>(seed),
+        TyKind::Int(IntTy::Isize) => rand::<isize>(seed),
         // Ty::Slice(ty) => {
         //     let n = arbitrary::<usize>() % 6;
         //     let values: Vec<_> =
@@ -319,6 +322,15 @@ impl ContractPool<ParametricContracts> {
     pub fn instantiate_values(mut self) -> ContractPool<InstantiatedContracts> {
         let mut instantiated_contracts = vec![];
         for (i, contract) in self.contracts.iter().enumerate() {
+            let mut next_seed = {
+                let mut current = contract.seed.unwrap_or_else(|| {
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    contract.hash(&mut hasher);
+                    hasher.finish()
+                });
+                move || (current, current += 1).0
+            };
             let mut instances = vec![];
             for _ in 1..100 {
                 if instances.len() >= 5 {
@@ -328,7 +340,7 @@ impl ContractPool<ParametricContracts> {
                 let values = {
                     types
                         .iter()
-                        .map(generate_for_type)
+                        .map(|ty| generate_for_type(next_seed(), ty))
                         .collect::<Vec<(serde_json::Value, String)>>()
                 };
                 let Some(result) = self.state.test_precondition(

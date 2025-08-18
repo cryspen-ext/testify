@@ -29,6 +29,7 @@ impl Contract {
             dependencies: HashMap::new(),
             use_statements: vec![],
             function_tested: None,
+            seed: None,
         }
     }
 }
