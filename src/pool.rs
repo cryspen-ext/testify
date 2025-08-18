@@ -295,7 +295,7 @@ fn generate_for_type(seed: u64, ty: &Ty) -> (serde_json::Value, String) {
         (repr, expr)
     }
     match ty.kind() {
-        TyKind::Uint(UintTy::U8) => rand::<u16>(seed),
+        TyKind::Uint(UintTy::U8) => rand::<u8>(seed),
         TyKind::Uint(UintTy::U16) => rand::<u16>(seed),
         TyKind::Uint(UintTy::U32) => rand::<u32>(seed),
         TyKind::Uint(UintTy::U64) => rand::<u64>(seed),
